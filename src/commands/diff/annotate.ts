@@ -4,7 +4,7 @@ import {execFile} from 'node:child_process'
 import {join, resolve} from 'node:path'
 import {promisify} from 'node:util'
 
-import type {MakesureConfig} from '../../lib/configuration/config.js'
+import type {FilterConfig, MakesureConfig} from '../../lib/configuration/config.js'
 
 import {executeReportAction, isReportAction, type ReportOutput} from '../../lib/actions/index.js'
 import {loadConfig} from '../../lib/configuration/loader.js'
@@ -15,7 +15,7 @@ const execFileAsync = promisify(execFile)
 
 interface Rule {
   actions: unknown[]
-  filters: {args: string[]; type: string}[]
+  filters: FilterConfig[]
 }
 
 interface FileRuleset {

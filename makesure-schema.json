@@ -2,23 +2,74 @@
   "$ref": "#/definitions/MakesureConfig",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "FilterConfig": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/JqFilterConfig"
+        },
+        {
+          "$ref": "#/definitions/RegexFilterConfig"
+        },
+        {
+          "$ref": "#/definitions/TsqFilterConfig"
+        },
+        {
+          "$ref": "#/definitions/XPathFilterConfig"
+        }
+      ],
+      "description": "Union type of all supported filter configurations. Each filter type has its own specific properties with the 'type' field as discriminant."
+    },
+    "JqFilterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for the jq filter. Uses the jq command-line tool to extract/transform JSON content.",
+      "properties": {
+        "name": {
+          "description": "Optional name of the definition, for reuse. Names must be unique. To use a definition by name, provide its name instead of the inline definition object.",
+          "type": "string"
+        },
+        "query": {
+          "description": "The jq query expression to apply to JSON content. See https://jqlang.github.io/jq/manual/ for syntax reference.",
+          "examples": [
+            ".version",
+            ".dependencies | keys",
+            ".scripts | to_entries | map(select(.key | startswith(\"test\")))"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "jq",
+          "description": "Discriminant tag identifying this as a jq filter.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query",
+        "type"
+      ],
+      "type": "object"
+    },
     "MakesureConfig": {
       "additionalProperties": false,
+      "description": "Root configuration interface for makesure.yml files. Defines all the rules for processing git diffs.",
       "properties": {
         "rules": {
+          "description": "List of file rulesets that define how to process different types of files.",
           "items": {
             "additionalProperties": false,
+            "description": "A FileRuleset maps file patterns to rules. Files matching the pattern will have the rules applied to them.",
             "properties": {
               "pattern": {
-                "description": "Glob of file patterns to which this rule will apply.",
+                "description": "Glob pattern for files to which this ruleset applies. Uses minimatch syntax for pattern matching.",
                 "type": "string"
               },
               "rules": {
-                "description": "List of rules or rule references to apply to these files",
+                "description": "List of rules to apply to files matching the pattern.",
                 "items": {
                   "additionalProperties": false,
+                  "description": "A rule defines filters to apply and actions to take when changes match.",
                   "properties": {
                     "actions": {
+                      "description": "Actions to run when the rule is triggered. Will run once per file that matches the rule's filters.",
                       "items": {
                         "anyOf": [
                           {
@@ -34,13 +85,13 @@
                                 "type": "string"
                               },
                               "urgency": {
-                                "description": "Urgency of report.",
+                                "description": "Urgency of report. Higher values indicate more important/urgent reports. Reports are sorted by urgency (highest first) when output.",
                                 "type": "number"
                               }
                             },
                             "required": [
-                              "urgency",
-                              "template"
+                              "template",
+                              "urgency"
                             ],
                             "type": "object"
                           },
@@ -82,48 +133,21 @@
                               }
                             },
                             "required": [
-                              "command",
                               "args",
+                              "command",
                               "env"
                             ],
                             "type": "object"
                           }
-                        ]
+                        ],
+                        "description": "Union type of all supported actions."
                       },
                       "type": "array"
                     },
                     "filters": {
+                      "description": "Filters to apply to the file content. Each filter processes the file and produces artifacts for comparison. If all filters produce a meaningful diff, the actions are triggered.",
                       "items": {
-                        "additionalProperties": false,
-                        "description": "A FileFilter will be run on each side of a file diff to produce artifacts for A and B. A and B can then be diffed. If there is still a diff, the FileFilter returns the diff as part of a FilterResult.",
-                        "properties": {
-                          "args": {
-                            "description": "Args to pass to the filter or filter program.",
-                            "items": {
-                              "type": "string"
-                            },
-                            "type": "array"
-                          },
-                          "name": {
-                            "description": "Optional name of the definition, for reuse. Names must be unique. To use a definition by name, provide its name instead of the inline definition object.",
-                            "type": "string"
-                          },
-                          "type": {
-                            "description": "Type of filter to apply. \"auto\" will detect based on file extension.",
-                            "enum": [
-                              "jq",
-                              "yq",
-                              "program",
-                              "auto"
-                            ],
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "type",
-                          "args"
-                        ],
-                        "type": "object"
+                        "$ref": "#/definitions/FilterConfig"
                       },
                       "type": "array"
                     },
@@ -152,6 +176,151 @@
       },
       "required": [
         "rules"
+      ],
+      "type": "object"
+    },
+    "RegexFilterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for the regex filter. Extracts content matching a regular expression pattern.",
+      "properties": {
+        "flags": {
+          "description": "Optional regex flags to modify matching behavior. The 'g' (global) and 'm' (multiline) flags are always applied automatically.\n\nCommon flags:\n- 'i': Case-insensitive matching\n- 's': Dot matches newlines (dotAll mode)\n- 'u': Unicode mode",
+          "examples": [
+            "i",
+            "iu"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional name of the definition, for reuse. Names must be unique. To use a definition by name, provide its name instead of the inline definition object.",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "The regular expression pattern to match. Uses JavaScript regex syntax.",
+          "examples": [
+            "API_KEY=.*",
+            "version\\s*=\\s*\\d+\\.\\d+\\.\\d+",
+            "import\\s+\\{[^}]+\\}\\s+from"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "regex",
+          "description": "Discriminant tag identifying this as a regex filter.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern",
+        "type"
+      ],
+      "type": "object"
+    },
+    "TsqFilterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for the tsq (tree-sitter query) filter. Extracts AST nodes from source code using tree-sitter's S-expression query syntax. This enables language-aware code analysis for tracking changes to specific code constructs.",
+      "properties": {
+        "capture": {
+          "description": "Optional capture name to filter results. When specified, only nodes matching this capture name will be extracted. If omitted, all captures from the query will be included.",
+          "examples": [
+            "fn",
+            "class-name",
+            "method"
+          ],
+          "type": "string"
+        },
+        "language": {
+          "$ref": "#/definitions/TsqSupportedExtension",
+          "description": "Optional file extension to override language detection. By default, the language is detected from the file being processed. Use this when processing files with non-standard extensions.\n\nSupported extensions: .js, .jsx, .mjs, .ts, .tsx, .py, .go, .java, .rs, .c, .h, .cpp, .cxx, .hpp, .json",
+          "examples": [
+            ".js",
+            ".py",
+            ".ts"
+          ]
+        },
+        "name": {
+          "description": "Optional name of the definition, for reuse. Names must be unique. To use a definition by name, provide its name instead of the inline definition object.",
+          "type": "string"
+        },
+        "query": {
+          "description": "The tree-sitter query pattern using S-expression syntax. See https://tree-sitter.github.io/tree-sitter/using-parsers/queries for syntax reference.\n\nCommon patterns:\n- `(node_type)",
+          "type": "string"
+        },
+        "type": {
+          "const": "tsq",
+          "description": "Discriminant tag identifying this as a tsq filter.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query",
+        "type"
+      ],
+      "type": "object"
+    },
+    "TsqSupportedExtension": {
+      "description": "Supported file extensions for tree-sitter language detection.",
+      "enum": [
+        ".c",
+        ".cpp",
+        ".cxx",
+        ".go",
+        ".h",
+        ".hpp",
+        ".java",
+        ".js",
+        ".json",
+        ".jsx",
+        ".mjs",
+        ".py",
+        ".rs",
+        ".ts",
+        ".tsx"
+      ],
+      "type": "string"
+    },
+    "XPathFilterConfig": {
+      "additionalProperties": false,
+      "description": "Configuration for the xpath filter. Extracts nodes from XML/HTML content using XPath expressions.",
+      "properties": {
+        "expression": {
+          "description": "The XPath expression to evaluate against the XML/HTML content. See https://www.w3.org/TR/xpath/ for syntax reference.",
+          "examples": [
+            "//version",
+            "//dependency[groupId='com.example']/version",
+            "string(//project/version)"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Optional name of the definition, for reuse. Names must be unique. To use a definition by name, provide its name instead of the inline definition object.",
+          "type": "string"
+        },
+        "namespaces": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional namespace prefix mappings for XPath expressions. Maps prefix strings to namespace URI strings. Required when querying XML documents with namespaces.",
+          "examples": [
+            {
+              "m": "http://maven.apache.org/POM/4.0.0"
+            },
+            {
+              "svg": "http://www.w3.org/2000/svg",
+              "xhtml": "http://www.w3.org/1999/xhtml"
+            }
+          ],
+          "type": "object"
+        },
+        "type": {
+          "const": "xpath",
+          "description": "Discriminant tag identifying this as an xpath filter.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression",
+        "type"
       ],
       "type": "object"
     }

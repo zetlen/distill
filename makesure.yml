@@ -14,5 +14,5 @@ rules:
               ```
         filters:
           - type: "jq"
-            args:
-              - .dependencies | del(.workerd)
+            query: ".dependencies | del(.workerd)"
+              
