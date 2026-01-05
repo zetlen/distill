@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./makesure-schema.json
-rules:
-  - pattern: 'package.json'
-    rules:
+checksets:
+  - include: 'package.json'
+    checks:
       - actions:
           - urgency: 0
             template: |
@@ -15,8 +15,8 @@ rules:
         filters:
           - type: 'jq'
             query: '.dependencies | del(.workerd)'
-  - pattern: 'src/lib/commands/**/*.ts'
-    rules:
+  - include: 'src/commands/**/*.ts'
+    checks:
       - actions:
           - urgency: 0
             template: |
@@ -27,11 +27,12 @@ rules:
               ```
         filters:
           - type: 'ast-grep'
-            pattern: 'class C { static override flags = $FLAGS }'
-          - type: 'ast-grep'
-            pattern: 'class C { static override args = $ARGS }'
-  - pattern: 'README.md'
-    rules:
+            language: typescript
+            pattern:
+              selector: public_field_definition
+              context: 'class C { static override flags = $FLAGS }'
+  - include: 'README.md'
+    checks:
       - actions:
           - urgency: 1
             template: |
