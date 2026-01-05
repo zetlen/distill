@@ -4,7 +4,7 @@ import xpath from 'xpath'
 import type {FileVersions} from '../diff/parser.js'
 import type {FilterApplier, FilterResult} from './types.js'
 
-import {createDiffText} from './utils.js'
+import {createFilterResult} from './utils.js'
 
 /**
  * Configuration for the xpath filter.
@@ -102,18 +102,7 @@ export const xpathFilter: FilterApplier<XPathFilterConfig> = {
     const leftArtifact = extractNodes(versions.oldContent)
     const rightArtifact = extractNodes(versions.newContent)
 
-    // If artifacts are the same, no meaningful diff after filtering
-    if (leftArtifact === rightArtifact) {
-      return null
-    }
-
-    const diffText = await createDiffText(leftArtifact, rightArtifact)
-
-    return {
-      diffText,
-      left: {artifact: leftArtifact},
-      right: {artifact: rightArtifact},
-    }
+    return createFilterResult(leftArtifact, rightArtifact)
   },
 }
 

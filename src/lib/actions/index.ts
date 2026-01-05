@@ -7,8 +7,16 @@ export interface ReportAction {
   urgency: number
 }
 
+export interface ReportMetadata {
+  diffText: string
+  fileName: string
+  lineRange?: {end: number; start: number}
+  message: string
+}
+
 export interface ReportOutput {
   content: string
+  metadata?: ReportMetadata
   urgency: number
 }
 
@@ -30,8 +38,17 @@ export function executeReportAction(
     right: {artifact: new Handlebars.SafeString(filterResult.right.artifact)},
   })
 
+  // Basic metadata population.
+  const metadata: ReportMetadata = {
+    diffText: filterResult.diffText,
+    fileName: context.filePath,
+    message: content, // Use the rendered content as the default message
+    ...(filterResult.lineRange ? {lineRange: filterResult.lineRange} : {}),
+  }
+
   return {
     content,
+    metadata,
     urgency: action.urgency,
   }
 }

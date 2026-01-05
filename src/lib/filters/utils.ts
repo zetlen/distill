@@ -4,6 +4,8 @@ import {unlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
+import type {FilterResult} from './types.js'
+
 /**
  * Run a command with stdin input and return stdout.
  */
@@ -76,5 +78,50 @@ export async function createDiffText(left: string, right: string): Promise<strin
   } finally {
     await unlink(leftPath).catch(() => {})
     await unlink(rightPath).catch(() => {})
+  }
+}
+
+/**
+ * Extract the line range from the first hunk header in the diff text.
+ * Hunk headers format: @@ -oldStart,oldLines +newStart,newLines @@
+ * We are interested in the new range (after the +).
+ */
+function parseLineRange(diffText: string): undefined | {end: number; start: number} {
+  const match = diffText.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/m)
+  if (!match) {
+    return undefined
+  }
+
+  const start = Number.parseInt(match[1], 10)
+  const lines = match[2] ? Number.parseInt(match[2], 10) : 1
+
+  return {
+    end: start + lines - 1, // inclusive
+    start,
+  }
+}
+
+/**
+ * Create a FilterResult from two artifacts.
+ * Conditionally parses line numbers from the diff text.
+ */
+export async function createFilterResult(
+  leftArtifact: string,
+  rightArtifact: string,
+  shouldExtractLineRange = true,
+): Promise<FilterResult | null> {
+  // If artifacts are the same, no meaningful diff after filtering
+  if (leftArtifact === rightArtifact) {
+    return null
+  }
+
+  const diffText = await createDiffText(leftArtifact, rightArtifact)
+  const lineRange = shouldExtractLineRange ? parseLineRange(diffText) : undefined
+
+  return {
+    diffText,
+    left: {artifact: leftArtifact},
+    right: {artifact: rightArtifact},
+    ...(lineRange ? {lineRange} : {}),
   }
 }
