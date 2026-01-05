@@ -1,30 +1,12 @@
-import {dirname, extname, join} from 'node:path'
-import {fileURLToPath} from 'node:url'
+import {extname} from 'node:path'
 
 import type {FileVersions} from '../diff/parser.js'
 import type {FilterApplier, FilterResult} from './types.js'
 
+import {getLanguageForExtension, initTreeSitter, type SupportedExtension} from '../tree-sitter.js'
 import {createFilterResult} from './utils.js'
 
-/**
- * Supported file extensions for tree-sitter language detection.
- */
-export type TsqSupportedExtension =
-  | '.c'
-  | '.cpp'
-  | '.cxx'
-  | '.go'
-  | '.h'
-  | '.hpp'
-  | '.java'
-  | '.js'
-  | '.json'
-  | '.jsx'
-  | '.mjs'
-  | '.py'
-  | '.rs'
-  | '.ts'
-  | '.tsx'
+export type TsqSupportedExtension = SupportedExtension
 
 /**
  * Configuration for the tsq (tree-sitter query) filter.
@@ -105,92 +87,6 @@ export interface TsqFilterConfig {
   type: 'tsq'
 }
 
-// Lazy-loaded tree-sitter module
-type TreeSitterType = typeof import('web-tree-sitter')
-let TreeSitterModule: null | TreeSitterType = null
-
-async function getTreeSitter(): Promise<TreeSitterType> {
-  if (!TreeSitterModule) {
-    TreeSitterModule = await import('web-tree-sitter')
-  }
-
-  return TreeSitterModule
-}
-
-// Track initialization state
-let treeSitterInitialized = false
-
-// Language WASM file mappings
-const LANGUAGE_WASM_MAP: Record<string, string> = {
-  '.c': 'tree-sitter-c/tree-sitter-c.wasm',
-  '.cpp': 'tree-sitter-cpp/tree-sitter-cpp.wasm',
-  '.cxx': 'tree-sitter-cpp/tree-sitter-cpp.wasm',
-  '.go': 'tree-sitter-go/tree-sitter-go.wasm',
-  '.h': 'tree-sitter-c/tree-sitter-c.wasm',
-  '.hpp': 'tree-sitter-cpp/tree-sitter-cpp.wasm',
-  '.java': 'tree-sitter-java/tree-sitter-java.wasm',
-  '.js': 'tree-sitter-javascript/tree-sitter-javascript.wasm',
-  '.json': 'tree-sitter-json/tree-sitter-json.wasm',
-  '.jsx': 'tree-sitter-javascript/tree-sitter-javascript.wasm',
-  '.mjs': 'tree-sitter-javascript/tree-sitter-javascript.wasm',
-  '.py': 'tree-sitter-python/tree-sitter-python.wasm',
-  '.rs': 'tree-sitter-rust/tree-sitter-rust.wasm',
-  '.ts': 'tree-sitter-typescript/tree-sitter-typescript.wasm',
-  '.tsx': 'tree-sitter-typescript/tree-sitter-tsx.wasm',
-}
-
-// Cache loaded languages
-const languageCache = new Map<string, import('web-tree-sitter').Language>()
-
-/**
- * Initialize tree-sitter if not already initialized.
- */
-async function initTreeSitter(): Promise<TreeSitterType> {
-  const ts = await getTreeSitter()
-
-  if (!treeSitterInitialized) {
-    // Locate the tree-sitter WASM file
-    const __dirname = dirname(fileURLToPath(import.meta.url))
-    const wasmPath = join(__dirname, '../../../node_modules/web-tree-sitter/web-tree-sitter.wasm')
-
-    // Parser has a static init method
-    await ts.Parser.init({
-      locateFile: () => wasmPath,
-    })
-    treeSitterInitialized = true
-  }
-
-  return ts
-}
-
-/**
- * Get or load a tree-sitter language for the given file extension.
- */
-async function getLanguageForExtension(
-  ext: string,
-  ts: TreeSitterType,
-): Promise<import('web-tree-sitter').Language | null> {
-  const wasmRelPath = LANGUAGE_WASM_MAP[ext.toLowerCase()]
-  if (!wasmRelPath) return null
-
-  // Check cache first
-  if (languageCache.has(wasmRelPath)) {
-    return languageCache.get(wasmRelPath)!
-  }
-
-  // Load the language WASM file
-  const __dirname = dirname(fileURLToPath(import.meta.url))
-  const wasmPath = join(__dirname, '../../../node_modules', wasmRelPath)
-
-  try {
-    const language = await ts.Language.load(wasmPath)
-    languageCache.set(wasmRelPath, language)
-    return language
-  } catch {
-    return null
-  }
-}
-
 /**
  * Tree-sitter query filter for extracting AST nodes from source code.
  */
@@ -216,30 +112,45 @@ export const tsqFilter: FilterApplier<TsqFilterConfig> = {
     // Get Parser and Query constructors from ts module
     const {Parser, Query} = ts
 
-    const extractNodes = (content: null | string): string => {
-      if (!content) return ''
+    const extractNodes = (content: null | string): {context: Record<string, string>[][]; text: string} => {
+      if (!content) return {context: [], text: ''}
 
       try {
         const parser = new Parser()
         parser.setLanguage(language)
 
         const tree = parser.parse(content)
-        if (!tree) return ''
+        if (!tree) return {context: [], text: ''}
 
         const query = new Query(language, queryString)
-        const captures = query.captures(tree.rootNode)
+        const matches = query.matches(tree.rootNode)
 
-        // Filter by capture name if specified
-        const filteredCaptures = capture ? captures.filter((c) => c.name === capture) : captures
-
-        // Extract unique node texts (deduplicate by node id)
-        const seen = new Set<number>()
         const nodeTexts: string[] = []
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const contexts: Record<string, any>[] = []
+        const seen = new Set<number>()
 
-        for (const cap of filteredCaptures) {
-          if (!seen.has(cap.node.id)) {
-            seen.add(cap.node.id)
-            nodeTexts.push(cap.node.text)
+        for (const match of matches) {
+          // A match contains multiple captures.
+          // We want to extract the text for nodes that match the 'capture' config (if set),
+          // OR all nodes if no capture config is set.
+          // AND we want to return the whole match as "context".
+
+          const matchContext: Record<string, string> = {}
+          let hasMatchingCapture = false
+
+          for (const cap of match.captures) {
+            matchContext[cap.name] = cap.node.text
+
+            if ((!capture || cap.name === capture) && !seen.has(cap.node.id)) {
+              seen.add(cap.node.id)
+              nodeTexts.push(cap.node.text)
+              hasMatchingCapture = true
+            }
+          }
+
+          if (hasMatchingCapture) {
+            contexts.push(matchContext)
           }
         }
 
@@ -248,10 +159,13 @@ export const tsqFilter: FilterApplier<TsqFilterConfig> = {
         tree.delete()
         parser.delete()
 
-        return nodeTexts.join('\n\n')
+        return {
+          context: [contexts], // Wrap in array to match expected SymbolicContext[][] structure if needed, or adjust types
+          text: nodeTexts.join('\n\n'),
+        }
       } catch {
         // If parsing or query fails, return empty
-        return ''
+        return {context: [], text: ''}
       }
     }
 
@@ -260,10 +174,23 @@ export const tsqFilter: FilterApplier<TsqFilterConfig> = {
       return null
     }
 
-    const leftArtifact = extractNodes(versions.oldContent)
-    const rightArtifact = extractNodes(versions.newContent)
+    const left = extractNodes(versions.oldContent)
+    const right = extractNodes(versions.newContent)
 
-    return createFilterResult(leftArtifact, rightArtifact)
+    // Combine contexts from both sides
+    const allContexts = new Set<string>()
+
+    for (const c of left.context) allContexts.add(JSON.stringify(c))
+
+    for (const c of right.context) allContexts.add(JSON.stringify(c))
+
+    const result = await createFilterResult(left.text, right.text)
+    if (result && allContexts.size > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      result.context = [...allContexts].map((c) => JSON.parse(c) as any)
+    }
+
+    return result
   },
 }
 
