@@ -4,7 +4,7 @@ import type {FileVersions} from '../diff/parser.js'
 import type {FilterApplier, FilterResult} from './types.js'
 
 import {getLanguageForExtension, initTreeSitter, type SupportedExtension} from '../tree-sitter.js'
-import {createFilterResult} from './utils.js'
+import {processFilter} from './utils.js'
 
 export type TsqSupportedExtension = SupportedExtension
 
@@ -126,8 +126,7 @@ export const tsqFilter: FilterApplier<TsqFilterConfig> = {
         const matches = query.matches(tree.rootNode)
 
         const nodeTexts: string[] = []
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const contexts: Record<string, any>[] = []
+        const contexts: Record<string, string>[] = []
         const seen = new Set<number>()
 
         for (const match of matches) {
@@ -169,28 +168,7 @@ export const tsqFilter: FilterApplier<TsqFilterConfig> = {
       }
     }
 
-    // If both are null, nothing to filter
-    if (versions.oldContent === null && versions.newContent === null) {
-      return null
-    }
-
-    const left = extractNodes(versions.oldContent)
-    const right = extractNodes(versions.newContent)
-
-    // Combine contexts from both sides
-    const allContexts = new Set<string>()
-
-    for (const c of left.context) allContexts.add(JSON.stringify(c))
-
-    for (const c of right.context) allContexts.add(JSON.stringify(c))
-
-    const result = await createFilterResult(left.text, right.text)
-    if (result && allContexts.size > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result.context = [...allContexts].map((c) => JSON.parse(c) as any)
-    }
-
-    return result
+    return processFilter(versions, extractNodes)
   },
 }
 

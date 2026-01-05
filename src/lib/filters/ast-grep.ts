@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process'
 import type {FileVersions} from '../diff/parser.js'
 import type {FilterApplier, FilterResult} from './types.js'
 
-import {createFilterResult} from './utils.js'
+import {processFilter} from './utils.js'
 
 /**
  * Pattern object for ast-grep with context and selector.
@@ -241,27 +241,6 @@ export const astGrepFilter: FilterApplier<AstGrepFilterConfig> = {
       return extractMatchedText(jsonOutput)
     }
 
-    // If both are null, nothing to filter
-    if (versions.oldContent === null && versions.newContent === null) {
-      return null
-    }
-
-    const [left, right] = await Promise.all([extractNodes(versions.oldContent), extractNodes(versions.newContent)])
-
-    // Combine contexts from both sides
-    const allContexts = new Set<string>()
-
-    for (const c of left.context) allContexts.add(JSON.stringify(c))
-
-    for (const c of right.context) allContexts.add(JSON.stringify(c))
-
-    const result = await createFilterResult(left.text, right.text)
-
-    if (result && allContexts.size > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result.context = [...allContexts].map((c) => JSON.parse(c) as any)
-    }
-
-    return result
+    return processFilter(versions, extractNodes)
   },
 }
