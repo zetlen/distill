@@ -9,6 +9,10 @@ export interface FilterResult {
   left: {
     artifact: string
   }
+  lineRange?: {
+    end: number
+    start: number
+  }
   right: {
     artifact: string
   }

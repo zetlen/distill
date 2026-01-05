@@ -1,7 +1,7 @@
 import type {FileVersions} from '../diff/parser.js'
 import type {FilterApplier, FilterResult} from './types.js'
 
-import {createDiffText, runWithStdin} from './utils.js'
+import {createFilterResult, runWithStdin} from './utils.js'
 
 /**
  * Configuration for the jq filter.
@@ -59,18 +59,7 @@ export const jqFilter: FilterApplier<JqFilterConfig> = {
     const leftArtifact = versions.oldContent ? await runJq(versions.oldContent, config.query) : ''
     const rightArtifact = versions.newContent ? await runJq(versions.newContent, config.query) : ''
 
-    // If artifacts are the same, no meaningful diff after filtering
-    if (leftArtifact === rightArtifact) {
-      return null
-    }
-
-    const diffText = await createDiffText(leftArtifact, rightArtifact)
-
-    return {
-      diffText,
-      left: {artifact: leftArtifact},
-      right: {artifact: rightArtifact},
-    }
+    return createFilterResult(leftArtifact, rightArtifact, false)
   },
 }
 

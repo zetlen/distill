@@ -45,6 +45,7 @@ describe('executeReportAction', () => {
     const filterResult: FilterResult = {
       diffText,
       left: {artifact: 'left'},
+      lineRange: {end: 24, start: 20},
       right: {artifact: 'right'},
     }
 
@@ -53,7 +54,7 @@ describe('executeReportAction', () => {
     const output = executeReportAction(action, filterResult, context)
 
     expect(output.metadata?.lineRange).to.deep.equal({
-      end: 24, // 20 + 5 - 1
+      end: 24,
       start: 20,
     })
   })

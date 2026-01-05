@@ -1,7 +1,7 @@
 import type {FileVersions} from '../diff/parser.js'
 import type {FilterApplier, FilterResult} from './types.js'
 
-import {createDiffText} from './utils.js'
+import {createFilterResult} from './utils.js'
 
 /**
  * Configuration for the regex filter.
@@ -78,18 +78,7 @@ export const regexFilter: FilterApplier<RegexFilterConfig> = {
     const leftArtifact = extractMatches(versions.oldContent)
     const rightArtifact = extractMatches(versions.newContent)
 
-    // If artifacts are the same, no meaningful diff after filtering
-    if (leftArtifact === rightArtifact) {
-      return null
-    }
-
-    const diffText = await createDiffText(leftArtifact, rightArtifact)
-
-    return {
-      diffText,
-      left: {artifact: leftArtifact},
-      right: {artifact: rightArtifact},
-    }
+    return createFilterResult(leftArtifact, rightArtifact)
   },
 }
 
