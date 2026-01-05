@@ -7,20 +7,19 @@
       "description": "Configuration for the ast-grep filter. Extracts AST nodes from source code using ast-grep's pattern syntax. Patterns look like actual code with metavariables ($VAR) for wildcards.",
       "properties": {
         "language": {
+          "description": "The language to parse the code as. Required for accurate AST parsing.",
           "type": "string"
         },
         "pattern": {
-          "additionalProperties": false,
-          "properties": {
-            "context": {
-              "type": "string"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AstGrepPatternObject"
             },
-            "selector": {
+            {
               "type": "string"
             }
-          },
-          "required": ["selector", "context"],
-          "type": "object"
+          ],
+          "description": "The pattern to match against. Can be a simple string pattern or an object with context and selector for precise matching."
         },
         "type": {
           "const": "ast-grep",
@@ -28,7 +27,23 @@
           "type": "string"
         }
       },
-      "required": ["type", "language", "pattern"],
+      "required": ["language", "pattern", "type"],
+      "type": "object"
+    },
+    "AstGrepPatternObject": {
+      "additionalProperties": false,
+      "description": "Pattern object for ast-grep with context and selector. Used for precise matching within specific AST structures.",
+      "properties": {
+        "context": {
+          "description": "Full code snippet providing context for parsing. This helps ast-grep understand the syntactic structure.",
+          "type": "string"
+        },
+        "selector": {
+          "description": "AST node type to select from the matched context. Ensures precise targeting of specific syntax elements.",
+          "type": "string"
+        }
+      },
+      "required": ["context", "selector"],
       "type": "object"
     },
     "Check": {
@@ -123,7 +138,7 @@
           "type": "string"
         }
       },
-      "required": ["include", "checks"],
+      "required": ["checks", "include"],
       "type": "object"
     },
     "FilterConfig": {

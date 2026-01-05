@@ -20,7 +20,21 @@ checksets:
       - actions:
           - urgency: 0
             template: |
-              # Oclif command flags or args have been modified.
+              # Oclif command args have been modified.
+
+              ```diff
+              {{diffText}}
+              ```
+        filters:
+          - type: 'ast-grep'
+            language: typescript
+            pattern:
+              selector: public_field_definition
+              context: 'class C { static override args = $ARGS }'
+      - actions:
+          - urgency: 0
+            template: |
+              # Oclif command flags have been modified.
 
               ```diff
               {{diffText}}
@@ -40,7 +54,8 @@ checksets:
 
               ```diff
               {{diffText}}
-              ````
+              ```
         filters:
           - type: 'regex'
             pattern: "\\n<!-- commands -->.+\\n<!-- commandsstop -->"
+            flags: 's'

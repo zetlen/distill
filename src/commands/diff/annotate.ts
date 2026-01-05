@@ -107,9 +107,9 @@ export default class DiffAnnotate extends Command {
     const reports: ReportOutput[] = []
 
     for (const file of files) {
-      for (const ruleset of config.checksets) {
+      for (const checkset of config.checksets) {
         // eslint-disable-next-line no-await-in-loop
-        const rulesetReports = await this.processRuleset(ruleset as FileCheckset, file, refs, cwd)
+        const rulesetReports = await this.processRuleset(checkset as FileCheckset, file, refs, cwd)
         reports.push(...rulesetReports)
       }
     }
