@@ -14,6 +14,22 @@ export type JsonOutput = ReportMetadata[]
 /**
  * Base command for distill CLI.
  * Provides shared flags and JSON output handling.
+ *
+ * ## Error Handling Patterns
+ *
+ * Commands should follow these patterns for consistent error handling:
+ *
+ * - **Fatal errors** (invalid args, missing auth, no access): Use `this.error(message)`.
+ *   This throws and exits with a non-zero code. Appropriate for errors that prevent
+ *   the command from running at all.
+ *
+ * - **No results** (empty diff, clean working tree, no PR found): Return gracefully.
+ *   - In JSON mode: return `[]` (empty array)
+ *   - In text mode: log a message with `this.log()` and return `undefined`
+ *   This allows programmatic usage and testing without throwing.
+ *
+ * - **Warnings** (using defaults, skipping files): Use `this.warn(message)`.
+ *   Outputs to stderr but continues execution.
  */
 export abstract class BaseCommand<T extends typeof Command> extends Command {
   // Shared flags across all commands
