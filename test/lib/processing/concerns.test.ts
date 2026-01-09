@@ -1,38 +1,33 @@
 import {expect} from 'chai'
 
-import {DistillConfig} from '../../../src/lib/configuration/config.js'
+import {TiltshiftConfig} from '../../../src/lib/configuration/config.js'
 import {File} from '../../../src/lib/diff/parser.js'
 import {processFiles} from '../../../src/lib/processing/runner.js'
 import {ProcessingContext} from '../../../src/lib/processing/types.js'
 
-describe('Concerns Processing', () => {
-  it('updates concern context when action triggers', async () => {
-    const config: DistillConfig = {
-      checksets: [
-        {
-          checks: [
+describe('Subjects Processing', () => {
+  it('updates subject context when viewer triggers', async () => {
+    const config: TiltshiftConfig = {
+      subjects: {
+        'my-subject': {
+          projections: [
             {
-              actions: [
+              focuses: [
+                {
+                  pattern: 'foo',
+                  type: 'regex',
+                },
+              ],
+              include: '*.ts',
+              viewers: [
                 {
                   set: {
                     foundFoo: 'true',
                   },
                 },
               ],
-              filters: [
-                {
-                  pattern: 'foo',
-                  type: 'regex',
-                },
-              ],
             },
           ],
-          concerns: ['my-concern'],
-          include: '*.ts',
-        },
-      ],
-      concerns: {
-        'my-concern': {
           stakeholders: [
             {
               contactMethod: 'email',
@@ -44,9 +39,9 @@ describe('Concerns Processing', () => {
     }
 
     const context: ProcessingContext = {
-      concerns: {},
       contentProvider: async (ref) => (ref === 'HEAD' ? 'foo' : ''),
       refs: {base: 'BASE', head: 'HEAD'},
+      subjects: {},
     }
 
     const files: File[] = [
@@ -66,6 +61,6 @@ describe('Concerns Processing', () => {
 
     await processFiles(files, config, context)
 
-    expect(context.concerns['my-concern']).to.deep.equal({foundFoo: 'true'})
+    expect(context.subjects['my-subject']).to.deep.equal({foundFoo: 'true'})
   })
 })

@@ -1,9 +1,17 @@
-checksets:
-  - include: 'package.json'
-    checks:
-      - actions:
-          - urgency: 1
-            template: |
+subjects:
+  test-subject:
+    stakeholders:
+      - name: Test Stakeholder
+        description: For testing
+        contactMethod: test@example.com
+
+    projections:
+      - include: 'package.json'
+        focuses:
+          - type: 'jq'
+            query: '.dependencies'
+        viewers:
+          - template: |
               # Test Report
 
               Found changes in dependencies.
@@ -11,6 +19,3 @@ checksets:
               ```diff
               {{diffText}}
               ```
-        filters:
-          - type: 'jq'
-            query: '.dependencies'

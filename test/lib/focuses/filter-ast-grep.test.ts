@@ -1,6 +1,6 @@
 import {expect} from 'chai'
 
-import {astGrepFilter} from '../../../src/lib/filters/index.js'
+import {astGrepFilter} from '../../../src/lib/focuses/index.js'
 import {fixtures} from '../../fixtures/loader.js'
 
 describe('astGrepFilter', () => {

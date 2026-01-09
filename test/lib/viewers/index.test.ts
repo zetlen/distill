@@ -1,19 +1,18 @@
 import {expect} from 'chai'
 
+import {FilterResult} from '../../../src/lib/focuses/types.js'
 import {
-  executeReportAction,
-  executeUpdateConcernContextAction,
-  ReportAction,
-  UpdateConcernContextAction,
-} from '../../../src/lib/actions/index.js'
-import {FilterResult} from '../../../src/lib/filters/types.js'
+  executeReportViewer,
+  executeUpdateSubjectContextViewer,
+  ReportViewer,
+  UpdateSubjectContextViewer,
+} from '../../../src/lib/viewers/index.js'
 
-describe('Actions', () => {
-  describe('executeReportAction', () => {
+describe('Viewers', () => {
+  describe('executeReportViewer', () => {
     it('populates metadata correctly', () => {
-      const action: ReportAction = {
+      const viewer: ReportViewer = {
         template: 'Found issue in {{filePath}}',
-        urgency: 1,
       }
 
       const filterResult: FilterResult = {
@@ -24,10 +23,9 @@ describe('Actions', () => {
 
       const context = {filePath: 'src/main.ts'}
 
-      const output = executeReportAction(action, filterResult, context)
+      const output = executeReportViewer(viewer, filterResult, context)
 
       expect(output.content).to.equal('Found issue in src/main.ts')
-      expect(output.urgency).to.equal(1)
       expect(output.metadata).to.deep.include({
         diffText: 'some diff',
         fileName: 'src/main.ts',
@@ -36,9 +34,8 @@ describe('Actions', () => {
     })
 
     it('extracts line range from diff', () => {
-      const action: ReportAction = {
+      const viewer: ReportViewer = {
         template: 'Issue',
-        urgency: 1,
       }
 
       const diffText = `--- a.ts
@@ -57,7 +54,7 @@ describe('Actions', () => {
 
       const context = {filePath: 'src/main.ts'}
 
-      const output = executeReportAction(action, filterResult, context)
+      const output = executeReportViewer(viewer, filterResult, context)
 
       expect(output.metadata?.lineRange).to.deep.equal({
         end: 24,
@@ -66,9 +63,9 @@ describe('Actions', () => {
     })
   })
 
-  describe('executeUpdateConcernContextAction', () => {
+  describe('executeUpdateSubjectContextViewer', () => {
     it('evaluates templates in values', () => {
-      const action: UpdateConcernContextAction = {
+      const viewer: UpdateSubjectContextViewer = {
         set: {
           flag: 'true',
           message: 'Found {{filePath}}',
@@ -83,7 +80,7 @@ describe('Actions', () => {
 
       const context = {filePath: 'src/config.ts'}
 
-      const updates = executeUpdateConcernContextAction(action, filterResult, context)
+      const updates = executeUpdateSubjectContextViewer(viewer, filterResult, context)
 
       expect(updates).to.deep.equal({
         flag: 'true',

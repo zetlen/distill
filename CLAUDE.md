@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`distill` is an oclif-based CLI tool that processes code changes with semantic rules. It analyzes git diffs and applies configurable rules to generate reports or run actions based on filtered file changes.
+`tiltshift` is an oclif-based CLI tool that processes code changes with semantic rules. It analyzes git diffs and applies configurable rules to generate reports or run viewers based on focused file changes.
 
 ## Essential Commands
 
@@ -29,7 +29,7 @@ npm run lint
 # Generate JSON schema from TypeScript config types
 npm run generate-schema
 
-# Run distill on itself (dogfooding) - tests the tool on the current repo
+# Run tiltshift on itself (dogfooding) - tests the tool on the current repo
 npm run dogfood
 
 # Format code with prettier
@@ -68,24 +68,25 @@ npm run build:docker
 
 ### Configuration System
 
-The core of distill is a rule-based configuration system defined in `src/lib/configuration/config.ts`:
+The core of tiltshift is a rule-based configuration system defined in `src/lib/configuration/config.ts`:
 
-- **FileCheckset**: Maps file patterns (globs via `include`) to checks
-- **Check**: Contains filters and actions to apply to matching files
-- **Filter**: Processes files to extract relevant content for comparison
-  - Filters run on both sides of a diff to produce artifacts A and B
+- **TiltshiftConfig**: Root configuration with `subjects` and optional `defined` block
+- **Subject**: An area of interest with stakeholders and projections
+- **Projection**: Combines file pattern (`include`) with focuses and viewers
+- **Focus**: Processes files to extract relevant content for comparison
+  - Focuses run on both sides of a diff to produce artifacts A and B
   - Returns a `FilterResult` containing the diff text, both artifacts, and optional metadata:
     - `lineRange`: Line numbers within the filtered artifact (for precise code location)
     - `context`: Symbolic context array (e.g., surrounding class/function names for ast-grep, tsq, regex)
-- **Action**: What to do when a check triggers
-  - **ReportAction**: Generates text reports using Handlebars templates with markdown support
-  - **RunAction**: Executes arbitrary commands with environment variables from the filter results
+- **Viewer**: What to do when a projection triggers
+  - **ReportViewer**: Generates text reports using Handlebars templates with markdown support
+  - **RunViewer**: Executes arbitrary commands with environment variables from the focus results
 
-Configuration is stored in `distill.yml` at the project root, with JSON schema validation available via `distill-schema.json`.
+Configuration is stored in `tiltshift.yml` at the project root, with JSON schema validation available via `tiltshift-schema.json`.
 
-### Available Filters
+### Available Focuses
 
-| Filter     | Description                         | External Dependency         |
+| Focus      | Description                         | External Dependency         |
 | ---------- | ----------------------------------- | --------------------------- |
 | `jq`       | JSON processing with jq queries     | `jq` CLI                    |
 | `regex`    | Regular expression pattern matching | None                        |
@@ -93,54 +94,51 @@ Configuration is stored in `distill.yml` at the project root, with JSON schema v
 | `tsq`      | Tree-sitter AST queries             | None (uses web-tree-sitter) |
 | `ast-grep` | ast-grep pattern matching           | `ast-grep` CLI              |
 
-### Filter Configuration Examples
+### Focus Configuration Examples
 
 ```yaml
-checksets:
-  # jq filter for JSON
-  - include: 'package.json'
-    checks:
-      - filters:
+subjects:
+  dependencies:
+    stakeholders:
+      - name: Dev Team
+        contactMethod: github-comment-mention
+    projections:
+      # jq focus for JSON
+      - include: 'package.json'
+        focuses:
           - type: jq
             query: '.dependencies'
-        actions:
-          - urgency: 1
-            template: 'Dependencies changed'
+        viewers:
+          - template: 'Dependencies changed'
 
-  # ast-grep with simple pattern
-  - include: 'src/**/*.ts'
-    checks:
-      - filters:
+      # ast-grep with simple pattern
+      - include: 'src/**/*.ts'
+        focuses:
           - type: ast-grep
             language: typescript
             pattern: 'function $NAME($$$PARAMS) { $$$BODY }'
-        actions:
-          - urgency: 1
-            template: 'Function changed'
+        viewers:
+          - template: 'Function changed'
 
-  # ast-grep with context/selector for precise matching
-  - include: 'src/commands/**/*.ts'
-    checks:
-      - filters:
+      # ast-grep with context/selector for precise matching
+      - include: 'src/commands/**/*.ts'
+        focuses:
           - type: ast-grep
             language: typescript
             pattern:
               context: 'class C { static override args = $ARGS }'
               selector: public_field_definition
-        actions:
-          - urgency: 1
-            template: 'Command args changed'
+        viewers:
+          - template: 'Command args changed'
 
-  # regex with dotAll flag for multiline
-  - include: 'README.md'
-    checks:
-      - filters:
+      # regex with dotAll flag for multiline
+      - include: 'README.md'
+        focuses:
           - type: regex
             pattern: '<!-- start -->.*<!-- end -->'
             flags: 's'
-        actions:
-          - urgency: 1
-            template: 'Section changed'
+        viewers:
+          - template: 'Section changed'
 ```
 
 ### JSON Output Format
@@ -150,7 +148,6 @@ The `--json` flag outputs structured report data with enhanced metadata:
 ```typescript
 {
   content: string      // Rendered markdown report
-  urgency: number      // Priority level (0-3)
   metadata: {
     fileName: string
     diffText: string
@@ -167,9 +164,9 @@ The `--json` flag outputs structured report data with enhanced metadata:
 }
 ```
 
-**Important**: The `lineRange` refers to line numbers within the _filtered artifact_ (the extracted code snippet), not the original source file. This is especially relevant for filters like `jq` or `xpath` that transform the input.
+**Important**: The `lineRange` refers to line numbers within the _filtered artifact_ (the extracted code snippet), not the original source file. This is especially relevant for focuses like `jq` or `xpath` that transform the input.
 
-The `context` array provides symbolic information about surrounding code structures (available for ast-grep, tsq, and regex filters), helping identify which class/function the change occurred in.
+The `context` array provides symbolic information about surrounding code structures (available for ast-grep, tsq, and regex focuses), helping identify which class/function the change occurred in.
 
 ### Project Structure
 
@@ -179,20 +176,20 @@ The `context` array provides symbolic information about surrounding code structu
   - `pr.ts`: Analyzes GitHub PRs via API (extends BaseCommand)
 - `src/lib/`: Core library modules
   - `base-command.ts`: Abstract base command with shared flags and `enableJsonFlag`
-  - `configuration/`: Config types (`config.ts`) and YAML loader (`loader.ts`)
+  - `configuration/`: Config types (`config.ts`), YAML loader (`loader.ts`), reference resolver (`resolver.ts`)
   - `diff/`: Git diff parsing and file version retrieval (`parser.ts`)
   - `git/`: Git utilities for working tree status, remote detection, etc.
     - `utils.ts`: Functions for `getWorkingTreeStatus`, `isValidRef`, `getRemotes`, etc.
     - `index.ts`: Re-exports
-  - `filters/`: Filter implementations (jq, regex, xpath, tsq, ast-grep)
+  - `focuses/`: Focus implementations (jq, regex, xpath, tsq, ast-grep)
     - `types.ts`: FilterResult interface with lineRange and context metadata
     - `utils.ts`: Shared utilities for extracting symbolic context
-  - `actions/`: Action implementations (report with Handlebars, JSON output)
+  - `viewers/`: Viewer implementations (report with Handlebars, JSON output)
   - `processing/`: Processing runner and types for ContentProvider abstraction
   - `tree-sitter.ts`: Tree-sitter language parsers and utilities
 - `test/`: Mocha/Chai tests using `@oclif/test`
   - `test/commands/`: Command tests (diff.test.ts, diff-json.test.ts, pr.test.ts)
-  - `test/lib/filters/`: Individual test files per filter type
+  - `test/lib/focuses/`: Individual test files per focus type
   - `test/fixtures/`: Test fixture files for various languages
 - `bin/`: CLI executables (`dev.js` for development, `run.js` for production)
 
@@ -228,16 +225,16 @@ Commands extend `BaseCommand` from `src/lib/base-command.ts`, which provides:
 
 - Framework: Mocha with Chai assertions
 - oclif testing utilities via `@oclif/test`
-- Tests follow the pattern: `test/lib/filters/filter-*.test.ts` for each filter
+- Tests follow the pattern: `test/lib/focuses/focus-*.test.ts` for each focus
 - Run with `--forbid-only` to prevent committed `.only()` calls
-- 90 tests covering all filters and core functionality
+- 138 tests covering all focuses and core functionality
 
 ### External Dependencies
 
 The following CLI tools must be installed for full functionality:
 
-- `jq` - for the jq filter
-- `ast-grep` - for the ast-grep filter
+- `jq` - for the jq focus
+- `ast-grep` - for the ast-grep focus
 
 These are managed via `mise.toml` for local development. In Docker, they're installed via `apk`.
 
@@ -255,22 +252,22 @@ These are managed via `mise.toml` for local development. In Docker, they're inst
 
 #### Workflow Tips
 
-- **Schema Generation**: After changing config types in `src/lib/configuration/config.ts`, run `npm run generate-schema` to update `distill-schema.json`
+- **Schema Generation**: After changing config types in `src/lib/configuration/config.ts`, run `npm run generate-schema` to update `tiltshift-schema.json`
 - **README Updates**: The README command documentation is auto-generated by oclif during `npm run prepack` or when running `npm run version`
-- **Dogfooding**: Run `npm run dogfood` to test distill on itself using the `distill.yml` in the repo root
-- **Self-Documentation**: The `distill.yml` file serves as both configuration for the project and a comprehensive example of all filter types
+- **Dogfooding**: Run `npm run dogfood` to test tiltshift on itself using the `tiltshift.yml` in the repo root
+- **Self-Documentation**: The `tiltshift.yml` file serves as both configuration for the project and a comprehensive example of all focus types
 
 #### Key Files to Update Together
 
 When making changes, these files often need to be updated together:
 
-1. **Adding a new filter**:
-   - `src/lib/filters/<name>.ts` - Implementation
-   - `src/lib/filters/index.ts` - Add to router switch statement
-   - `src/lib/configuration/config.ts` - Add to FilterConfig union type
+1. **Adding a new focus**:
+   - `src/lib/focuses/<name>.ts` - Implementation
+   - `src/lib/focuses/index.ts` - Add to router switch statement
+   - `src/lib/configuration/config.ts` - Add to FocusConfig union type
    - Run `npm run generate-schema` to update schema
-   - `test/lib/filters/filter-<name>.test.ts` - Add tests
-   - `CLAUDE.md` - Update filter table and examples
+   - `test/lib/focuses/focus-<name>.test.ts` - Add tests
+   - `CLAUDE.md` - Update focus table and examples
 
 2. **Adding a new command**:
    - `src/commands/<name>.ts` - Extend `BaseCommand`, implement `run()` returning `JsonOutput | void`
@@ -287,5 +284,5 @@ When making changes, these files often need to be updated together:
 4. **Modifying configuration schema**:
    - `src/lib/configuration/config.ts` - Update types
    - Run `npm run generate-schema`
-   - Update `distill.yml` if needed
+   - Update `tiltshift.yml` if needed
    - Update documentation and examples

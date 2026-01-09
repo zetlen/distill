@@ -1,21 +1,7 @@
 {
-  "$ref": "#/definitions/DistillConfig",
+  "$ref": "#/definitions/TiltshiftConfig",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
-    "Action": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/ReportAction"
-        },
-        {
-          "$ref": "#/definitions/RunAction"
-        },
-        {
-          "$ref": "#/definitions/UpdateConcernContextAction"
-        }
-      ],
-      "description": "Union type of all supported actions. Actions can be discriminated by:\n- 'template' property -> ReportAction\n- 'command' property -> RunAction\n- 'set' property -> UpdateConcernContextAction"
-    },
     "AstGrepFilterConfig": {
       "additionalProperties": false,
       "description": "Configuration for the ast-grep filter. Extracts AST nodes from source code using ast-grep's pattern syntax. Patterns look like actual code with metavariables ($VAR) for wildcards.",
@@ -60,92 +46,35 @@
       "required": ["context", "selector"],
       "type": "object"
     },
-    "Check": {
+    "DefinedBlock": {
       "additionalProperties": false,
-      "description": "A check defines filters to apply and actions to take when changes match.",
+      "description": "Block of reusable definitions that can be referenced via UseReference.",
       "properties": {
-        "actions": {
-          "description": "Actions to run when the check is triggered. Will run once per file that matches the check's filters.",
-          "items": {
-            "$ref": "#/definitions/Action"
-          },
-          "type": "array"
-        },
-        "filters": {
-          "description": "Filters to apply to the file content. Each filter processes the file and produces artifacts for comparison. If all filters produce a meaningful diff, the actions are triggered.",
-          "items": {
-            "$ref": "#/definitions/FilterConfig"
-          },
-          "type": "array"
-        }
-      },
-      "required": ["actions", "filters"],
-      "type": "object"
-    },
-    "Concern": {
-      "additionalProperties": false,
-      "description": "A concern represents a specific area of interest or domain in the project. Checksets can be attached to concerns to group related checks.",
-      "properties": {
-        "stakeholders": {
-          "description": "List of stakeholders associated with this concern.",
-          "items": {
-            "$ref": "#/definitions/Stakeholder"
-          },
-          "type": "array"
-        }
-      },
-      "required": ["stakeholders"],
-      "type": "object"
-    },
-    "DistillConfig": {
-      "additionalProperties": false,
-      "description": "Root configuration interface for distill.yml files. Defines all the checksets for processing git diffs.",
-      "properties": {
-        "checksets": {
-          "description": "List of file checksets that define how to process different types of files.",
-          "items": {
-            "$ref": "#/definitions/FileCheckset"
-          },
-          "type": "array"
-        },
-        "concerns": {
+        "focuses": {
           "additionalProperties": {
-            "$ref": "#/definitions/Concern"
+            "$ref": "#/definitions/FocusConfig"
           },
-          "description": "Dictionary of concerns defined in the project. Keys are concern IDs.",
+          "description": "Reusable focus configurations. Reference with: { use: \"#defined/focuses/<name>\" }",
+          "type": "object"
+        },
+        "projections": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Projection"
+          },
+          "description": "Reusable projection configurations. Reference with: { use: \"#defined/projections/<name>\" }",
+          "type": "object"
+        },
+        "viewers": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Viewer"
+          },
+          "description": "Reusable viewer configurations. Reference with: { use: \"#defined/viewers/<name>\" }",
           "type": "object"
         }
       },
-      "required": ["checksets"],
       "type": "object"
     },
-    "FileCheckset": {
-      "additionalProperties": false,
-      "description": "Files matching the glob pattern will have the checks applied to them.",
-      "properties": {
-        "checks": {
-          "description": "List of checks to apply to files matching the pattern.",
-          "items": {
-            "$ref": "#/definitions/Check"
-          },
-          "type": "array"
-        },
-        "concerns": {
-          "description": "List of concern IDs that this checkset is attached to.",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
-        "include": {
-          "description": "Glob pattern for files to which this checkset applies. Uses minimatch syntax for pattern matching.",
-          "type": "string"
-        }
-      },
-      "required": ["checks", "include"],
-      "type": "object"
-    },
-    "FilterConfig": {
+    "FocusConfig": {
       "anyOf": [
         {
           "$ref": "#/definitions/AstGrepFilterConfig"
@@ -163,7 +92,18 @@
           "$ref": "#/definitions/XPathFilterConfig"
         }
       ],
-      "description": "Union type of all supported filter configurations. Each filter type has its own specific properties with the 'type' field as discriminant."
+      "description": "Union type of all supported focus configurations. Each focus type has its own specific properties with the 'type' field as discriminant."
+    },
+    "FocusRef": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/FocusConfig"
+        },
+        {
+          "$ref": "#/definitions/UseReference"
+        }
+      ],
+      "description": "Either an inline item or a reference to a defined item."
     },
     "JqFilterConfig": {
       "additionalProperties": false,
@@ -186,6 +126,43 @@
       },
       "required": ["query", "type"],
       "type": "object"
+    },
+    "Projection": {
+      "additionalProperties": false,
+      "description": "A projection defines a file pattern, focuses to apply, and viewers to execute. This combines what was previously split between FileCheckset and Check.",
+      "properties": {
+        "focuses": {
+          "description": "Focuses to apply to the file content. Each focus processes the file and produces artifacts for comparison. If all focuses produce a meaningful diff, the viewers are triggered. Can be inline configurations or references to defined focuses.",
+          "items": {
+            "$ref": "#/definitions/FocusRef"
+          },
+          "type": "array"
+        },
+        "include": {
+          "description": "Glob pattern for files to which this projection applies. Uses minimatch syntax for pattern matching.",
+          "type": "string"
+        },
+        "viewers": {
+          "description": "Viewers to run when the projection is triggered. Will run once per file that matches the projection's focuses. Can be inline configurations or references to defined viewers.",
+          "items": {
+            "$ref": "#/definitions/ViewerRef"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["focuses", "include", "viewers"],
+      "type": "object"
+    },
+    "ProjectionRef": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Projection"
+        },
+        {
+          "$ref": "#/definitions/UseReference"
+        }
+      ],
+      "description": "Either an inline projection or a reference to a defined projection."
     },
     "RegexFilterConfig": {
       "additionalProperties": false,
@@ -210,33 +187,29 @@
       "required": ["pattern", "type"],
       "type": "object"
     },
-    "ReportAction": {
+    "ReportViewer": {
       "additionalProperties": false,
-      "description": "A \"report\" action produces a text report about the change. It can be routed many places, including to stdout or an API call (for example, a GitHub comment).",
+      "description": "A \"report\" viewer produces a text report about the change. It can be routed many places, including to stdout or an API call (for example, a GitHub comment).",
       "properties": {
         "template": {
-          "description": "Handlebars template for the comment to produce. Accepts markdown, and receives a FilterResult as its evaluation context.",
+          "description": "Handlebars template for the comment to produce. Accepts markdown, and receives a FocusResult as its evaluation context.",
           "type": "string"
         },
         "type": {
           "const": "report",
           "description": "Discriminant for tagged union. Implied when 'template' is present.",
           "type": "string"
-        },
-        "urgency": {
-          "description": "Urgency of report. Higher values indicate more important/urgent reports. Reports are sorted by urgency (highest first) when output.",
-          "type": "number"
         }
       },
-      "required": ["template", "urgency"],
+      "required": ["template"],
       "type": "object"
     },
-    "RunAction": {
+    "RunViewer": {
       "additionalProperties": false,
-      "description": "A \"run\" action runs an arbitrary command that receives details about the change as environment variables.",
+      "description": "A \"run\" viewer runs an arbitrary command that receives details about the change as environment variables.",
       "properties": {
         "args": {
-          "description": "If the command requires arguments, they can be evaluated here as Handlebars templates which receive a FilterResult as evaluation context.",
+          "description": "If the command requires arguments, they can be evaluated here as Handlebars templates which receive a FocusResult as evaluation context.",
           "items": {
             "type": "string"
           },
@@ -260,7 +233,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "If the default environment variables don't suffice, you can define new ones as Handlebars templates which receive a FilterResult as evaluation context.",
+          "description": "If the default environment variables don't suffice, you can define new ones as Handlebars templates which receive a FocusResult as evaluation context.",
           "type": "object"
         },
         "type": {
@@ -274,7 +247,7 @@
     },
     "Stakeholder": {
       "additionalProperties": false,
-      "description": "A stakeholder interested in a set of concerns.",
+      "description": "A stakeholder interested in a set of subjects.",
       "properties": {
         "contactMethod": {
           "description": "How to contact the stakeholder. Examples: \"github-comment-mention\", \"github-reviewer-request\", \"github-assign\", \"webhook\".",
@@ -292,8 +265,49 @@
       "required": ["contactMethod", "name"],
       "type": "object"
     },
+    "Subject": {
+      "additionalProperties": false,
+      "description": "A subject represents a specific area of interest or domain in the project. Projections are attached to subjects to define what to monitor.",
+      "properties": {
+        "projections": {
+          "description": "Projections attached to this subject. Can be inline definitions or references to defined projections.",
+          "items": {
+            "$ref": "#/definitions/ProjectionRef"
+          },
+          "type": "array"
+        },
+        "stakeholders": {
+          "description": "List of stakeholders associated with this subject.",
+          "items": {
+            "$ref": "#/definitions/Stakeholder"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["projections", "stakeholders"],
+      "type": "object"
+    },
     "SupportedExtension": {
       "type": ["string"]
+    },
+    "TiltshiftConfig": {
+      "additionalProperties": false,
+      "description": "Root configuration interface for tiltshift.yml files. Subjects contain projections that define how to process git diffs.",
+      "properties": {
+        "defined": {
+          "$ref": "#/definitions/DefinedBlock",
+          "description": "Reusable definitions that can be referenced throughout the configuration."
+        },
+        "subjects": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Subject"
+          },
+          "description": "Dictionary of subjects defined in the project. Keys are subject IDs.",
+          "type": "object"
+        }
+      },
+      "required": ["subjects"],
+      "type": "object"
     },
     "TsqFilterConfig": {
       "additionalProperties": false,
@@ -325,15 +339,15 @@
     "TsqSupportedExtension": {
       "$ref": "#/definitions/SupportedExtension"
     },
-    "UpdateConcernContextAction": {
+    "UpdateSubjectContextViewer": {
       "additionalProperties": false,
-      "description": "An action that updates the shared context of the concerns attached to the checkset.",
+      "description": "A viewer that updates the shared context of the subjects attached to the projection.",
       "properties": {
         "set": {
           "additionalProperties": {
             "type": "string"
           },
-          "description": "Key-value pairs to set in the concern context. Values can be Handlebars templates which receive a FilterResult as evaluation context.",
+          "description": "Key-value pairs to set in the subject context. Values can be Handlebars templates which receive a FocusResult as evaluation context.",
           "type": "object"
         },
         "type": {
@@ -344,6 +358,41 @@
       },
       "required": ["set"],
       "type": "object"
+    },
+    "UseReference": {
+      "additionalProperties": false,
+      "description": "A reference to a defined item in the `defined` block. Format: \"#defined/<type>/<name>\" where type is projections, focuses, or viewers.",
+      "properties": {
+        "use": {
+          "type": "string"
+        }
+      },
+      "required": ["use"],
+      "type": "object"
+    },
+    "Viewer": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ReportViewer"
+        },
+        {
+          "$ref": "#/definitions/RunViewer"
+        },
+        {
+          "$ref": "#/definitions/UpdateSubjectContextViewer"
+        }
+      ],
+      "description": "Union type of all supported viewers. Viewers can be discriminated by:\n- 'template' property -> ReportViewer\n- 'command' property -> RunViewer\n- 'set' property -> UpdateSubjectContextViewer"
+    },
+    "ViewerRef": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/UseReference"
+        },
+        {
+          "$ref": "#/definitions/Viewer"
+        }
+      ]
     },
     "XPathFilterConfig": {
       "additionalProperties": false,

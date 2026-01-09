@@ -1,6 +1,6 @@
 import {expect} from 'chai'
 
-import {applyFilter, type FilterConfig} from '../../../src/lib/filters/index.js'
+import {applyFilter, type FilterConfig} from '../../../src/lib/focuses/index.js'
 import {fixtures} from '../../fixtures/loader.js'
 
 describe('applyFilter (orchestrator)', () => {

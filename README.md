@@ -1,103 +1,131 @@
-# distill
+# tiltshift
 
 Process code changes with semantic rules
 
 [![oclif](https://img.shields.io/badge/cli-oclif-brightgreen.svg)](https://oclif.io)
-[![Version](https://img.shields.io/npm/v/distill.svg)](https://npmjs.org/package/distill)
-[![Downloads/week](https://img.shields.io/npm/dw/distill.svg)](https://npmjs.org/package/distill)
+[![Version](https://img.shields.io/npm/v/tiltshift.svg)](https://npmjs.org/package/tiltshift)
+[![Downloads/week](https://img.shields.io/npm/dw/tiltshift.svg)](https://npmjs.org/package/tiltshift)
 
 <!-- toc -->
-* [distill](#distill)
-* [Usage](#usage)
-* [Configuration](#configuration)
-* [Commands](#commands)
+
+- [tiltshift](#tiltshift)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Commands](#commands)
 <!-- tocstop -->
 
 # Usage
 
 <!-- usage -->
+
 ```sh-session
-$ npm install -g @distill/cli
-$ distill COMMAND
+$ npm install -g @tiltshift/cli
+$ tiltshift COMMAND
 running command...
-$ distill (--version)
-@distill/cli/2.0.0 linux-x64 node-v24.12.0
-$ distill --help [COMMAND]
+$ tiltshift (--version)
+@tiltshift/cli/2.0.0 linux-x64 node-v24.12.0
+$ tiltshift --help [COMMAND]
 USAGE
-  $ distill COMMAND
+  $ tiltshift COMMAND
 ...
 ```
+
 <!-- usagestop -->
 
 # Configuration
 
-`distill` is configured via a `distill.yml` file in your repository root. You can define "checksets" to apply rules to specific files, and optionally group them by "concerns" to notify relevant "stakeholders".
+`tiltshift` is configured via a `tiltshift.yml` file in your repository root. You define **subjects** (areas of interest) containing **projections** that match files and apply **focuses** (filters) and **viewers** (output actions).
 
-## Concerns and Stakeholders
+## Subjects and Stakeholders
 
-You can define high-level **concerns** (e.g., "security", "ui-consistency") and map them to **stakeholders** (teams or individuals). Checksets can then be attached to these concerns.
+**Subjects** represent areas of interest (e.g., "security", "ui-consistency") with associated **stakeholders** (teams or individuals). Each subject contains **projections** that define what files to watch and how to process them.
 
 ```yaml
-concerns:
+subjects:
   security:
     stakeholders:
       - name: Security Team
         contactMethod: github-reviewer-request
         description: Reviews security-sensitive changes
+
+    projections:
+      - include: 'src/auth/**/*.ts'
+        focuses:
+          - type: regex
+            pattern: 'password|secret'
+        viewers:
+          - template: 'Potential secret exposure in {{filePath}}'
+          # Update the shared context for this subject
+          - set:
+              hasSecrets: 'true'
+
   ui-consistency:
     stakeholders:
       - name: Design System Team
         contactMethod: github-comment-mention
 
-checksets:
-  - include: 'src/auth/**/*.ts'
-    concerns: ['security']
-    checks:
-      - filters:
-          - type: regex
-            pattern: 'password|secret'
-        actions:
-          - template: 'Potential secret exposure in {{filePath}}'
-            urgency: 10
-          # Update the shared context for this concern
-          - set:
-              hasSecrets: 'true'
-
-  - include: 'src/components/**/*.tsx'
-    concerns: ['ui-consistency']
-    checks:
-      - filters:
+    projections:
+      - include: 'src/components/**/*.tsx'
+        focuses:
           - type: ast-grep
             language: tsx
             pattern:
               context: 'style={{...}}'
               selector: 'jsx_attribute'
-        actions:
+        viewers:
           - template: 'Avoid inline styles in {{filePath}}. Use standard classes.'
-            urgency: 5
+```
+
+## Reusable Definitions
+
+You can define reusable projections, focuses, and viewers in a `defined` block and reference them throughout your configuration:
+
+```yaml
+defined:
+  focuses:
+    jq-deps:
+      type: jq
+      query: '.dependencies'
+  viewers:
+    deps-report:
+      template: |
+        Dependencies changed in {{filePath}}
+
+subjects:
+  dependencies:
+    stakeholders:
+      - name: Dev Team
+        contactMethod: github-comment-mention
+    projections:
+      - include: 'package.json'
+        focuses:
+          - use: '#defined/focuses/jq-deps'
+        viewers:
+          - use: '#defined/viewers/deps-report'
 ```
 
 # Commands
 
 <!-- commands -->
-* [`distill diff [BASE] [HEAD]`](#distill-diff-base-head)
-* [`distill help [COMMAND]`](#distill-help-command)
-* [`distill pr [PR]`](#distill-pr-pr)
 
-## `distill diff [BASE] [HEAD]`
+- [`tiltshift diff [BASE] [HEAD]`](#tiltshift-diff-base-head)
+- [`tiltshift help [COMMAND]`](#tiltshift-help-command)
+- [`tiltshift pr [PR]`](#tiltshift-pr-pr)
+
+## `tiltshift diff [BASE] [HEAD]`
 
 Annotate a git diff with semantic analysis based on configured rules.
 
 ```
 USAGE
-  $ distill diff [BASE] [HEAD] [--json] [-c <value>] [-r <value>] [-s]
+  $ tiltshift diff [BASE] [HEAD] [--json] [-c <value>] [-r <value>] [-s]
 
 ARGUMENTS
   [BASE]  Base commit-ish (e.g., HEAD~1, main). Defaults based on working tree state.
   [HEAD]  Head commit-ish (e.g., HEAD, feat/foo, . for working directory). Defaults to "."
 
 FLAGS
-  -c, --config=<value>  Path to the distill configuration file (default: distill.yml in repo root)
+  -c, --config=<value>  Path to the tiltshift configuration file (default: tiltshift.yml in repo root)
   -r, --repo=<value>    Path to git repository
   -s, --staged          Only check staged changes (when comparing with working directory)
 
@@ -115,28 +143,28 @@ DESCRIPTION
   *filtered artifact* (the code snippet shown in the report), NOT the original source file.
 
 EXAMPLES
-  $ distill diff                  # auto-detect changes
+  $ tiltshift diff                  # auto-detect changes
 
-  $ distill diff --staged         # check staged changes only
+  $ tiltshift diff --staged         # check staged changes only
 
-  $ distill diff HEAD~1 HEAD
+  $ tiltshift diff HEAD~1 HEAD
 
-  $ distill diff main feat/foo
+  $ tiltshift diff main feat/foo
 
-  $ distill diff HEAD .           # compare HEAD to working directory
+  $ tiltshift diff HEAD .           # compare HEAD to working directory
 
-  $ distill diff main HEAD --repo ../other-project
+  $ tiltshift diff main HEAD --repo ../other-project
 ```
 
-_See code: [src/commands/diff.ts](https://github.com/zetlen/distill/blob/v2.0.0/src/commands/diff.ts)_
+_See code: [src/commands/diff.ts](https://github.com/zetlen/tiltshift/blob/v2.0.0/src/commands/diff.ts)_
 
-## `distill help [COMMAND]`
+## `tiltshift help [COMMAND]`
 
-Display help for distill.
+Display help for tiltshift.
 
 ```
 USAGE
-  $ distill help [COMMAND...] [-n]
+  $ tiltshift help [COMMAND...] [-n]
 
 ARGUMENTS
   [COMMAND...]  Command to show help for.
@@ -145,24 +173,24 @@ FLAGS
   -n, --nested-commands  Include all nested commands in the output.
 
 DESCRIPTION
-  Display help for distill.
+  Display help for tiltshift.
 ```
 
 _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.2.36/src/commands/help.ts)_
 
-## `distill pr [PR]`
+## `tiltshift pr [PR]`
 
 Annotate a GitHub Pull Request.
 
 ```
 USAGE
-  $ distill pr [PR] [--json] [-c <value>] [-r <value>]
+  $ tiltshift pr [PR] [--json] [-c <value>] [-r <value>]
 
 ARGUMENTS
   [PR]  PR number or URL (optional: detects PR for current branch if omitted)
 
 FLAGS
-  -c, --config=<value>  Path to the distill configuration file (default: distill.yml in repo root)
+  -c, --config=<value>  Path to the tiltshift configuration file (default: tiltshift.yml in repo root)
   -r, --repo=<value>    GitHub repository (owner/repo). Required if not running in a git repo.
 
 GLOBAL FLAGS
@@ -175,14 +203,15 @@ DESCRIPTION
   Requires GITHUB_TOKEN environment variable for authentication.
 
 EXAMPLES
-  $ distill pr                                # auto-detect PR for current branch
+  $ tiltshift pr                                # auto-detect PR for current branch
 
-  $ distill pr 123                            # PR number (uses detected remote)
+  $ tiltshift pr 123                            # PR number (uses detected remote)
 
-  $ distill pr https://github.com/owner/repo/pull/123
+  $ tiltshift pr https://github.com/owner/repo/pull/123
 
-  $ distill pr 123 --repo owner/repo
+  $ tiltshift pr 123 --repo owner/repo
 ```
 
-_See code: [src/commands/pr.ts](https://github.com/zetlen/distill/blob/v2.0.0/src/commands/pr.ts)_
+_See code: [src/commands/pr.ts](https://github.com/zetlen/tiltshift/blob/v2.0.0/src/commands/pr.ts)_
+
 <!-- commandsstop -->

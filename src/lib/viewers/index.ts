@@ -1,10 +1,10 @@
 import Handlebars from 'handlebars'
 
-import type {Action, ReportAction, RunAction, UpdateConcernContextAction} from '../configuration/config.js'
-import type {FilterResult} from '../filters/index.js'
+import type {ReportViewer, RunViewer, UpdateSubjectContextViewer, Viewer} from '../configuration/config.js'
+import type {FilterResult} from '../focuses/index.js'
 
-// Re-export action types for convenience
-export type {Action, ReportAction, RunAction, UpdateConcernContextAction} from '../configuration/config.js'
+// Re-export viewer types for convenience
+export type {ReportViewer, RunViewer, UpdateSubjectContextViewer, Viewer} from '../configuration/config.js'
 
 export interface ReportMetadata {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,19 +18,18 @@ export interface ReportMetadata {
 export interface ReportOutput {
   content: string
   metadata?: ReportMetadata
-  urgency: number
 }
 
 /**
- * Execute a report action by rendering the template with the filter result.
+ * Execute a report viewer by rendering the template with the filter result.
  * Diff text and artifacts are marked as safe strings to avoid HTML escaping.
  */
-export function executeReportAction(
-  action: ReportAction,
+export function executeReportViewer(
+  viewer: ReportViewer,
   filterResult: FilterResult,
   context: {filePath: string},
 ): ReportOutput {
-  const template = Handlebars.compile(action.template)
+  const template = Handlebars.compile(viewer.template)
   // Mark diff text and artifacts as safe to prevent HTML escaping
   const content = template({
     diffText: new Handlebars.SafeString(filterResult.diffText),
@@ -51,21 +50,20 @@ export function executeReportAction(
   return {
     content,
     metadata,
-    urgency: action.urgency,
   }
 }
 
 /**
- * Execute an update concern context action.
- * Returns the updates to be applied to the concern context.
+ * Execute an update subject context viewer.
+ * Returns the updates to be applied to the subject context.
  */
-export function executeUpdateConcernContextAction(
-  action: UpdateConcernContextAction,
+export function executeUpdateSubjectContextViewer(
+  viewer: UpdateSubjectContextViewer,
   filterResult: FilterResult,
   context: {filePath: string},
 ): Record<string, string> {
   const updates: Record<string, string> = {}
-  for (const [key, valueTemplate] of Object.entries(action.set)) {
+  for (const [key, valueTemplate] of Object.entries(viewer.set)) {
     const template = Handlebars.compile(valueTemplate)
     updates[key] = template({
       diffText: new Handlebars.SafeString(filterResult.diffText),
@@ -79,22 +77,22 @@ export function executeUpdateConcernContextAction(
 }
 
 /**
- * Type guard for report actions. Checks for the 'template' property which is unique to ReportAction.
+ * Type guard for report viewers. Checks for the 'template' property which is unique to ReportViewer.
  */
-export function isReportAction(action: Action): action is ReportAction {
-  return 'template' in action
+export function isReportViewer(viewer: Viewer): viewer is ReportViewer {
+  return 'template' in viewer
 }
 
 /**
- * Type guard for run actions. Checks for the 'command' property which is unique to RunAction.
+ * Type guard for run viewers. Checks for the 'command' property which is unique to RunViewer.
  */
-export function isRunAction(action: Action): action is RunAction {
-  return 'command' in action
+export function isRunViewer(viewer: Viewer): viewer is RunViewer {
+  return 'command' in viewer
 }
 
 /**
- * Type guard for update concern context actions. Checks for the 'set' property.
+ * Type guard for update subject context viewers. Checks for the 'set' property.
  */
-export function isUpdateConcernContextAction(action: Action): action is UpdateConcernContextAction {
-  return 'set' in action
+export function isUpdateSubjectContextViewer(viewer: Viewer): viewer is UpdateSubjectContextViewer {
+  return 'set' in viewer
 }

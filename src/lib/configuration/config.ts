@@ -1,22 +1,29 @@
-import type {AstGrepFilterConfig} from '../filters/ast-grep.js'
-import type {JqFilterConfig} from '../filters/jq.js'
-import type {RegexFilterConfig} from '../filters/regex.js'
-import type {TsqFilterConfig} from '../filters/tsq.js'
-import type {XPathFilterConfig} from '../filters/xpath.js'
+import type {AstGrepFilterConfig} from '../focuses/ast-grep.js'
+import type {JqFilterConfig} from '../focuses/jq.js'
+import type {RegexFilterConfig} from '../focuses/regex.js'
+import type {TsqFilterConfig} from '../focuses/tsq.js'
+import type {XPathFilterConfig} from '../focuses/xpath.js'
 
-// Re-export filter config types for convenience
-export type {AstGrepFilterConfig} from '../filters/ast-grep.js'
-export type {JqFilterConfig} from '../filters/jq.js'
-export type {RegexFilterConfig} from '../filters/regex.js'
-export type {TsqFilterConfig} from '../filters/tsq.js'
+// Re-export focus config types for convenience
+export type {AstGrepFilterConfig} from '../focuses/ast-grep.js'
+export type {JqFilterConfig} from '../focuses/jq.js'
+export type {RegexFilterConfig} from '../focuses/regex.js'
+export type {TsqFilterConfig} from '../focuses/tsq.js'
 /**
- * Re-export FilterResult from filters module for backwards compatibility.
+ * Re-export FocusResult from focuses module for backwards compatibility.
  */
-export type {FilterResult} from '../filters/types.js'
+export type {FilterResult} from '../focuses/types.js'
+
+export type {XPathFilterConfig} from '../focuses/xpath.js'
+
+// =============================================================================
+// FOCUS CONFIGURATION (formerly "Filter")
+// A focus extracts and transforms content from file versions for comparison.
+// =============================================================================
 
 /**
- * Union type of all supported filter configurations.
- * Each filter type has its own specific properties with the 'type' field as discriminant.
+ * Union type of all supported focus configurations.
+ * Each focus type has its own specific properties with the 'type' field as discriminant.
  *
  * @example AstGrepFilterConfig - For ast-grep pattern matching
  * @example JqFilterConfig - For JSON processing with jq
@@ -24,50 +31,53 @@ export type {FilterResult} from '../filters/types.js'
  * @example XPathFilterConfig - For XML/HTML XPath queries
  * @example TsqFilterConfig - For tree-sitter AST queries
  */
-export type FilterConfig =
-  | AstGrepFilterConfig
-  | JqFilterConfig
-  | RegexFilterConfig
-  | TsqFilterConfig
-  | XPathFilterConfig
+export type FocusConfig = AstGrepFilterConfig | JqFilterConfig | RegexFilterConfig | TsqFilterConfig | XPathFilterConfig
 
 /**
- * All supported filter type names.
+ * All supported focus type names.
  */
-export type FilterType = FilterConfig['type']
-
-export type {XPathFilterConfig} from '../filters/xpath.js'
+export type FocusType = FocusConfig['type']
 
 /**
- * A "report" action produces a text report about the change.
+ * @deprecated Use FocusConfig instead
+ */
+export type FilterConfig = FocusConfig
+
+/**
+ * @deprecated Use FocusType instead
+ */
+export type FilterType = FocusType
+
+// =============================================================================
+// VIEWER CONFIGURATION (formerly "Action")
+// A viewer processes the results of a focus comparison.
+// =============================================================================
+
+/**
+ * A "report" viewer produces a text report about the change.
  * It can be routed many places, including to stdout or an API call
  * (for example, a GitHub comment).
  */
-export interface ReportAction {
+export interface ReportViewer {
   /**
    * Handlebars template for the comment to produce. Accepts markdown,
-   * and receives a FilterResult as its evaluation context.
+   * and receives a FocusResult as its evaluation context.
    */
   template: string
   /**
    * Discriminant for tagged union. Implied when 'template' is present.
    */
   type?: 'report'
-  /**
-   * Urgency of report. Higher values indicate more important/urgent reports.
-   * Reports are sorted by urgency (highest first) when output.
-   */
-  urgency: number
 }
 
 /**
- * A "run" action runs an arbitrary command that receives details about the
+ * A "run" viewer runs an arbitrary command that receives details about the
  * change as environment variables.
  */
-export interface RunAction {
+export interface RunViewer {
   /**
    * If the command requires arguments, they can be evaluated here as Handlebars
-   * templates which receive a FilterResult as evaluation context.
+   * templates which receive a FocusResult as evaluation context.
    */
   args: string[]
   /**
@@ -77,7 +87,7 @@ export interface RunAction {
   command: string | string[]
   /**
    * If the default environment variables don't suffice, you can define new ones
-   * as Handlebars templates which receive a FilterResult as evaluation context.
+   * as Handlebars templates which receive a FocusResult as evaluation context.
    */
   env: Record<string, string>
   /**
@@ -87,12 +97,12 @@ export interface RunAction {
 }
 
 /**
- * An action that updates the shared context of the concerns attached to the checkset.
+ * A viewer that updates the shared context of the subjects attached to the projection.
  */
-export interface UpdateConcernContextAction {
+export interface UpdateSubjectContextViewer {
   /**
-   * Key-value pairs to set in the concern context.
-   * Values can be Handlebars templates which receive a FilterResult as evaluation context.
+   * Key-value pairs to set in the subject context.
+   * Values can be Handlebars templates which receive a FocusResult as evaluation context.
    */
   set: Record<string, string>
   /**
@@ -102,52 +112,95 @@ export interface UpdateConcernContextAction {
 }
 
 /**
- * Union type of all supported actions.
- * Actions can be discriminated by:
- * - 'template' property -> ReportAction
- * - 'command' property -> RunAction
- * - 'set' property -> UpdateConcernContextAction
+ * Union type of all supported viewers.
+ * Viewers can be discriminated by:
+ * - 'template' property -> ReportViewer
+ * - 'command' property -> RunViewer
+ * - 'set' property -> UpdateSubjectContextViewer
  */
-export type Action = ReportAction | RunAction | UpdateConcernContextAction
+export type Viewer = ReportViewer | RunViewer | UpdateSubjectContextViewer
 
 /**
- * A check defines filters to apply and actions to take when changes match.
+ * @deprecated Use ReportViewer instead
  */
-export interface Check {
-  /**
-   * Actions to run when the check is triggered.
-   * Will run once per file that matches the check's filters.
-   */
-  actions: Action[]
-  /**
-   * Filters to apply to the file content.
-   * Each filter processes the file and produces artifacts for comparison.
-   * If all filters produce a meaningful diff, the actions are triggered.
-   */
-  filters: FilterConfig[]
+export type ReportAction = ReportViewer
+
+/**
+ * @deprecated Use RunViewer instead
+ */
+export type RunAction = RunViewer
+
+/**
+ * @deprecated Use UpdateSubjectContextViewer instead
+ */
+export type UpdateConcernContextAction = UpdateSubjectContextViewer
+
+/**
+ * @deprecated Use Viewer instead
+ */
+export type Action = Viewer
+
+// =============================================================================
+// REFERENCE SYSTEM
+// Allows reusing defined projections, focuses, and viewers via references.
+// =============================================================================
+
+/**
+ * A reference to a defined item in the `defined` block.
+ * Format: "#defined/<type>/<name>" where type is projections, focuses, or viewers.
+ */
+export interface UseReference {
+  use: string
 }
 
 /**
- * Files matching the glob pattern will have the checks applied to them.
+ * Either an inline item or a reference to a defined item.
  */
-export interface FileCheckset {
+export type FocusRef = FocusConfig | UseReference
+export type ViewerRef = UseReference | Viewer
+
+// =============================================================================
+// PROJECTION (formerly "Check" + file pattern from "Checkset")
+// A projection is a self-contained rule: file pattern + focuses + viewers.
+// =============================================================================
+
+/**
+ * A projection defines a file pattern, focuses to apply, and viewers to execute.
+ * This combines what was previously split between FileCheckset and Check.
+ */
+export interface Projection {
   /**
-   * List of checks to apply to files matching the pattern.
+   * Focuses to apply to the file content.
+   * Each focus processes the file and produces artifacts for comparison.
+   * If all focuses produce a meaningful diff, the viewers are triggered.
+   * Can be inline configurations or references to defined focuses.
    */
-  checks: Check[]
+  focuses: FocusRef[]
   /**
-   * List of concern IDs that this checkset is attached to.
-   */
-  concerns?: string[]
-  /**
-   * Glob pattern for files to which this checkset applies.
+   * Glob pattern for files to which this projection applies.
    * Uses minimatch syntax for pattern matching.
    */
   include: string
+  /**
+   * Viewers to run when the projection is triggered.
+   * Will run once per file that matches the projection's focuses.
+   * Can be inline configurations or references to defined viewers.
+   */
+  viewers: ViewerRef[]
 }
 
 /**
- * A stakeholder interested in a set of concerns.
+ * Either an inline projection or a reference to a defined projection.
+ */
+export type ProjectionRef = Projection | UseReference
+
+// =============================================================================
+// SUBJECT (formerly "Concern")
+// A subject represents an area of interest with stakeholders and projections.
+// =============================================================================
+
+/**
+ * A stakeholder interested in a set of subjects.
  */
 export interface Stakeholder {
   /**
@@ -166,28 +219,97 @@ export interface Stakeholder {
 }
 
 /**
- * A concern represents a specific area of interest or domain in the project.
- * Checksets can be attached to concerns to group related checks.
+ * A subject represents a specific area of interest or domain in the project.
+ * Projections are attached to subjects to define what to monitor.
  */
-export interface Concern {
+export interface Subject {
   /**
-   * List of stakeholders associated with this concern.
+   * Projections attached to this subject.
+   * Can be inline definitions or references to defined projections.
+   */
+  projections: ProjectionRef[]
+  /**
+   * List of stakeholders associated with this subject.
    */
   stakeholders: Stakeholder[]
 }
 
 /**
- * Root configuration interface for distill.yml files.
- * Defines all the checksets for processing git diffs.
+ * @deprecated Use Subject instead
+ */
+export type Concern = Subject
+
+// =============================================================================
+// DEFINED BLOCK
+// Reusable definitions that can be referenced throughout the configuration.
+// =============================================================================
+
+/**
+ * Block of reusable definitions that can be referenced via UseReference.
+ */
+export interface DefinedBlock {
+  /**
+   * Reusable focus configurations.
+   * Reference with: { use: "#defined/focuses/<name>" }
+   */
+  focuses?: Record<string, FocusConfig>
+  /**
+   * Reusable projection configurations.
+   * Reference with: { use: "#defined/projections/<name>" }
+   */
+  projections?: Record<string, Projection>
+  /**
+   * Reusable viewer configurations.
+   * Reference with: { use: "#defined/viewers/<name>" }
+   */
+  viewers?: Record<string, Viewer>
+}
+
+// =============================================================================
+// ROOT CONFIGURATION
+// =============================================================================
+
+/**
+ * Root configuration interface for tiltshift.yml files.
+ * Subjects contain projections that define how to process git diffs.
+ */
+export interface TiltshiftConfig {
+  /**
+   * Reusable definitions that can be referenced throughout the configuration.
+   */
+  defined?: DefinedBlock
+  /**
+   * Dictionary of subjects defined in the project.
+   * Keys are subject IDs.
+   */
+  subjects: Record<string, Subject>
+}
+
+// =============================================================================
+// LEGACY TYPES (deprecated, for migration support)
+// =============================================================================
+
+/**
+ * @deprecated Checksets are no longer used. Use Projection instead.
+ */
+export interface Check {
+  actions: Action[]
+  filters: FilterConfig[]
+}
+
+/**
+ * @deprecated Checksets are no longer used. Use subjects with projections instead.
+ */
+export interface FileCheckset {
+  checks: Check[]
+  concerns?: string[]
+  include: string
+}
+
+/**
+ * @deprecated Use TiltshiftConfig instead
  */
 export interface DistillConfig {
-  /**
-   * List of file checksets that define how to process different types of files.
-   */
   checksets: FileCheckset[]
-  /**
-   * Dictionary of concerns defined in the project.
-   * Keys are concern IDs.
-   */
   concerns?: Record<string, Concern>
 }

@@ -1,161 +1,154 @@
 import {minimatch} from 'minimatch'
 
-import type {ReportOutput} from '../actions/index.js'
-import type {Action, Check, DistillConfig, FileCheckset, UpdateConcernContextAction} from '../configuration/config.js'
+import type {
+  DefinedBlock,
+  FocusConfig,
+  Projection,
+  TiltshiftConfig,
+  UpdateSubjectContextViewer,
+  Viewer,
+} from '../configuration/config.js'
 import type {File, FileVersions} from '../diff/parser.js'
-import type {ConcernContext, ProcessingContext} from './types.js'
+import type {ReportOutput} from '../viewers/index.js'
+import type {ProcessingContext, SubjectContext} from './types.js'
 
+import {resolveFocus, resolveProjection, resolveViewer} from '../configuration/resolver.js'
+import {applyFilter, type FilterResult} from '../focuses/index.js'
 import {
-  executeReportAction,
-  executeUpdateConcernContextAction,
-  isReportAction,
-  isUpdateConcernContextAction,
-} from '../actions/index.js'
-import {applyFilter, type FilterResult} from '../filters/index.js'
+  executeReportViewer,
+  executeUpdateSubjectContextViewer,
+  isReportViewer,
+  isUpdateSubjectContextViewer,
+} from '../viewers/index.js'
 
-/** Result of processing files through all checksets */
+/** Result of processing files through all subjects */
 export interface ProcessingResult {
-  concerns: ConcernContext
   reports: ReportOutput[]
+  subjects: SubjectContext
 }
 
 export async function processFiles(
   files: File[],
-  config: DistillConfig,
+  config: TiltshiftConfig,
   context: ProcessingContext,
 ): Promise<ProcessingResult> {
   const reports: ReportOutput[] = []
 
   for (const file of files) {
-    for (const checkset of config.checksets) {
-      // eslint-disable-next-line no-await-in-loop
-      const rulesetReports = await processCheckset({checkset, context, file})
-      reports.push(...rulesetReports)
+    for (const [subjectId, subject] of Object.entries(config.subjects)) {
+      for (const projectionRef of subject.projections) {
+        // eslint-disable-next-line no-await-in-loop
+        const projectionReports = await processProjection({
+          context,
+          defined: config.defined,
+          file,
+          projectionRef,
+          subjectId,
+        })
+        reports.push(...projectionReports)
+      }
     }
   }
 
-  return {concerns: context.concerns, reports}
+  return {reports, subjects: context.subjects}
 }
 
-/** Options for processing a checkset against a file */
-interface ProcessChecksetOptions {
-  checkset: FileCheckset
+/** Options for processing a projection against a file */
+interface ProcessProjectionOptions {
   context: ProcessingContext
+  defined?: DefinedBlock
   file: File
+  projectionRef: Projection | {use: string}
+  subjectId: string
 }
 
-async function processCheckset(options: ProcessChecksetOptions): Promise<ReportOutput[]> {
-  const {checkset, context, file} = options
+async function processProjection(options: ProcessProjectionOptions): Promise<ReportOutput[]> {
+  const {context, defined, file, projectionRef, subjectId} = options
   const filePath = file.newPath || file.oldPath
 
-  if (!minimatch(filePath, checkset.include)) {
+  // Resolve the projection reference
+  const projection = resolveProjection(projectionRef, defined)
+
+  if (!minimatch(filePath, projection.include)) {
     return []
   }
 
   const versions = await getFileVersions(file, context)
   const reports: ReportOutput[] = []
 
-  for (const check of checkset.checks) {
+  // Resolve all focuses
+  const focuses: FocusConfig[] = projection.focuses.map((ref) => resolveFocus(ref, defined))
+
+  // Apply focuses - all must pass
+  let focusResult: FilterResult | null = null
+  for (const focus of focuses) {
     // eslint-disable-next-line no-await-in-loop
-    const checkReports = await processCheck({
-      check,
-      concernIds: checkset.concerns,
-      context,
-      filePath,
-      versions,
-    })
-    reports.push(...checkReports)
-  }
-
-  return reports
-}
-
-/** Options for processing a single check */
-interface ProcessCheckOptions {
-  check: Check
-  concernIds?: string[]
-  context: ProcessingContext
-  filePath: string
-  versions: FileVersions
-}
-
-async function processCheck(options: ProcessCheckOptions): Promise<ReportOutput[]> {
-  const {check, concernIds, context, filePath, versions} = options
-  const reports: ReportOutput[] = []
-
-  // Apply filters - all must pass
-  let filterResult: FilterResult | null = null
-  for (const filter of check.filters) {
-    // eslint-disable-next-line no-await-in-loop
-    filterResult = await applyFilter(filter, versions, filePath)
-    if (!filterResult) {
+    focusResult = await applyFilter(focus, versions, filePath)
+    if (!focusResult) {
       return reports
     }
   }
 
-  // Execute actions if we have a filter result
-  if (filterResult) {
-    processActions({
-      actions: check.actions,
-      concernIds,
+  // Execute viewers if we have a focus result
+  if (focusResult) {
+    // Resolve all viewers
+    const viewers: Viewer[] = projection.viewers.map((ref) => resolveViewer(ref, defined))
+
+    processViewers({
       context,
       filePath,
-      filterResult,
+      focusResult,
       reports,
+      subjectId,
+      viewers,
     })
   }
 
   return reports
 }
 
-/** Options for processing actions from a triggered check */
-interface ProcessActionsOptions {
-  actions: Action[]
-  concernIds?: string[]
+/** Options for processing viewers from a triggered projection */
+interface ProcessViewersOptions {
   context: ProcessingContext
   filePath: string
-  filterResult: FilterResult
+  focusResult: FilterResult
   reports: ReportOutput[]
+  subjectId: string
+  viewers: Viewer[]
 }
 
-function processActions(options: ProcessActionsOptions): void {
-  const {actions, concernIds, context, filePath, filterResult, reports} = options
+function processViewers(options: ProcessViewersOptions): void {
+  const {context, filePath, focusResult, reports, subjectId, viewers} = options
 
-  for (const action of actions) {
-    if (isReportAction(action)) {
-      const report = executeReportAction(action, filterResult, {filePath})
+  for (const viewer of viewers) {
+    if (isReportViewer(viewer)) {
+      const report = executeReportViewer(viewer, focusResult, {filePath})
       reports.push(report)
-    } else if (isUpdateConcernContextAction(action)) {
-      applyConcernContextUpdates({action, concernIds, context, filePath, filterResult})
+    } else if (isUpdateSubjectContextViewer(viewer)) {
+      applySubjectContextUpdates({context, filePath, focusResult, subjectId, viewer})
     }
   }
 }
 
-/** Options for applying concern context updates */
-interface ApplyConcernContextUpdatesOptions {
-  action: UpdateConcernContextAction
-  concernIds?: string[]
+/** Options for applying subject context updates */
+interface ApplySubjectContextUpdatesOptions {
   context: ProcessingContext
   filePath: string
-  filterResult: FilterResult
+  focusResult: FilterResult
+  subjectId: string
+  viewer: UpdateSubjectContextViewer
 }
 
-function applyConcernContextUpdates(options: ApplyConcernContextUpdatesOptions): void {
-  const {action, concernIds, context, filePath, filterResult} = options
+function applySubjectContextUpdates(options: ApplySubjectContextUpdatesOptions): void {
+  const {context, filePath, focusResult, subjectId, viewer} = options
 
-  if (!concernIds) {
-    return
+  const updates = executeUpdateSubjectContextViewer(viewer, focusResult, {filePath})
+
+  if (!context.subjects[subjectId]) {
+    context.subjects[subjectId] = {}
   }
 
-  const updates = executeUpdateConcernContextAction(action, filterResult, {filePath})
-
-  for (const concernId of concernIds) {
-    if (!context.concerns[concernId]) {
-      context.concerns[concernId] = {}
-    }
-
-    context.concerns[concernId] = {...context.concerns[concernId], ...updates}
-  }
+  context.subjects[subjectId] = {...context.subjects[subjectId], ...updates}
 }
 
 /**

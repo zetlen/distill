@@ -78,7 +78,7 @@ Requires GITHUB_TOKEN environment variable for authentication.`
     // Fetch config - currently purely local
     const configPath = this.flags.config
       ? resolve(process.cwd(), this.flags.config)
-      : resolve(process.cwd(), 'distill.yml')
+      : resolve(process.cwd(), 'tiltshift.yml')
     const config = await loadConfig(configPath)
 
     // Fetch Diff
@@ -98,7 +98,7 @@ Requires GITHUB_TOKEN environment variable for authentication.`
 
     if (!diffString.trim()) {
       if (this.jsonEnabled()) {
-        return {concerns: {}, reports: []}
+        return {reports: [], subjects: {}}
       }
 
       this.log('No changes found in PR #%d', number)
@@ -129,9 +129,9 @@ Requires GITHUB_TOKEN environment variable for authentication.`
     }
 
     const result = await processFiles(files, config, {
-      concerns: {},
       contentProvider,
       refs,
+      subjects: {},
     })
 
     return this.outputReports(result)
