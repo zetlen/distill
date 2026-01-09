@@ -43,12 +43,16 @@ export type {XPathFilterConfig} from '../filters/xpath.js'
  * It can be routed many places, including to stdout or an API call
  * (for example, a GitHub comment).
  */
-interface ReportAction {
+export interface ReportAction {
   /**
    * Handlebars template for the comment to produce. Accepts markdown,
    * and receives a FilterResult as its evaluation context.
    */
   template: string
+  /**
+   * Discriminant for tagged union. Implied when 'template' is present.
+   */
+  type?: 'report'
   /**
    * Urgency of report. Higher values indicate more important/urgent reports.
    * Reports are sorted by urgency (highest first) when output.
@@ -60,7 +64,7 @@ interface ReportAction {
  * A "run" action runs an arbitrary command that receives details about the
  * change as environment variables.
  */
-interface RunAction {
+export interface RunAction {
   /**
    * If the command requires arguments, they can be evaluated here as Handlebars
    * templates which receive a FilterResult as evaluation context.
@@ -76,12 +80,35 @@ interface RunAction {
    * as Handlebars templates which receive a FilterResult as evaluation context.
    */
   env: Record<string, string>
+  /**
+   * Discriminant for tagged union. Implied when 'command' is present.
+   */
+  type?: 'run'
+}
+
+/**
+ * An action that updates the shared context of the concerns attached to the checkset.
+ */
+export interface UpdateConcernContextAction {
+  /**
+   * Key-value pairs to set in the concern context.
+   * Values can be Handlebars templates which receive a FilterResult as evaluation context.
+   */
+  set: Record<string, string>
+  /**
+   * Discriminant for tagged union. Implied when 'set' is present.
+   */
+  type?: 'set'
 }
 
 /**
  * Union type of all supported actions.
+ * Actions can be discriminated by:
+ * - 'template' property -> ReportAction
+ * - 'command' property -> RunAction
+ * - 'set' property -> UpdateConcernContextAction
  */
-type Action = ReportAction | RunAction
+export type Action = ReportAction | RunAction | UpdateConcernContextAction
 
 /**
  * A check defines filters to apply and actions to take when changes match.
@@ -109,10 +136,44 @@ export interface FileCheckset {
    */
   checks: Check[]
   /**
+   * List of concern IDs that this checkset is attached to.
+   */
+  concerns?: string[]
+  /**
    * Glob pattern for files to which this checkset applies.
    * Uses minimatch syntax for pattern matching.
    */
   include: string
+}
+
+/**
+ * A stakeholder interested in a set of concerns.
+ */
+export interface Stakeholder {
+  /**
+   * How to contact the stakeholder.
+   * Examples: "github-comment-mention", "github-reviewer-request", "github-assign", "webhook".
+   */
+  contactMethod: string
+  /**
+   * A description of the stakeholder's role or interest.
+   */
+  description?: string
+  /**
+   * The name of the stakeholder (e.g. a team or person).
+   */
+  name: string
+}
+
+/**
+ * A concern represents a specific area of interest or domain in the project.
+ * Checksets can be attached to concerns to group related checks.
+ */
+export interface Concern {
+  /**
+   * List of stakeholders associated with this concern.
+   */
+  stakeholders: Stakeholder[]
 }
 
 /**
@@ -124,4 +185,9 @@ export interface DistillConfig {
    * List of file checksets that define how to process different types of files.
    */
   checksets: FileCheckset[]
+  /**
+   * Dictionary of concerns defined in the project.
+   * Keys are concern IDs.
+   */
+  concerns?: Record<string, Concern>
 }

@@ -2,6 +2,20 @@
   "$ref": "#/definitions/DistillConfig",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "Action": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ReportAction"
+        },
+        {
+          "$ref": "#/definitions/RunAction"
+        },
+        {
+          "$ref": "#/definitions/UpdateConcernContextAction"
+        }
+      ],
+      "description": "Union type of all supported actions. Actions can be discriminated by:\n- 'template' property -> ReportAction\n- 'command' property -> RunAction\n- 'set' property -> UpdateConcernContextAction"
+    },
     "AstGrepFilterConfig": {
       "additionalProperties": false,
       "description": "Configuration for the ast-grep filter. Extracts AST nodes from source code using ast-grep's pattern syntax. Patterns look like actual code with metavariables ($VAR) for wildcards.",
@@ -53,61 +67,7 @@
         "actions": {
           "description": "Actions to run when the check is triggered. Will run once per file that matches the check's filters.",
           "items": {
-            "anyOf": [
-              {
-                "additionalProperties": false,
-                "description": "A \"report\" action produces a text report about the change. It can be routed many places, including to stdout or an API call (for example, a GitHub comment).",
-                "properties": {
-                  "template": {
-                    "description": "Handlebars template for the comment to produce. Accepts markdown, and receives a FilterResult as its evaluation context.",
-                    "type": "string"
-                  },
-                  "urgency": {
-                    "description": "Urgency of report. Higher values indicate more important/urgent reports. Reports are sorted by urgency (highest first) when output.",
-                    "type": "number"
-                  }
-                },
-                "required": ["template", "urgency"],
-                "type": "object"
-              },
-              {
-                "additionalProperties": false,
-                "description": "A \"run\" action runs an arbitrary command that receives details about the change as environment variables.",
-                "properties": {
-                  "args": {
-                    "description": "If the command requires arguments, they can be evaluated here as Handlebars templates which receive a FilterResult as evaluation context.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "command": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      }
-                    ],
-                    "description": "Path to the command. Can be a string or an array of strings which will be evaluated as arguments to produce the command path."
-                  },
-                  "env": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "description": "If the default environment variables don't suffice, you can define new ones as Handlebars templates which receive a FilterResult as evaluation context.",
-                    "type": "object"
-                  }
-                },
-                "required": ["args", "command", "env"],
-                "type": "object"
-              }
-            ],
-            "description": "Union type of all supported actions."
+            "$ref": "#/definitions/Action"
           },
           "type": "array"
         },
@@ -122,6 +82,43 @@
       "required": ["actions", "filters"],
       "type": "object"
     },
+    "Concern": {
+      "additionalProperties": false,
+      "description": "A concern represents a specific area of interest or domain in the project. Checksets can be attached to concerns to group related checks.",
+      "properties": {
+        "stakeholders": {
+          "description": "List of stakeholders associated with this concern.",
+          "items": {
+            "$ref": "#/definitions/Stakeholder"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["stakeholders"],
+      "type": "object"
+    },
+    "DistillConfig": {
+      "additionalProperties": false,
+      "description": "Root configuration interface for distill.yml files. Defines all the checksets for processing git diffs.",
+      "properties": {
+        "checksets": {
+          "description": "List of file checksets that define how to process different types of files.",
+          "items": {
+            "$ref": "#/definitions/FileCheckset"
+          },
+          "type": "array"
+        },
+        "concerns": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Concern"
+          },
+          "description": "Dictionary of concerns defined in the project. Keys are concern IDs.",
+          "type": "object"
+        }
+      },
+      "required": ["checksets"],
+      "type": "object"
+    },
     "FileCheckset": {
       "additionalProperties": false,
       "description": "Files matching the glob pattern will have the checks applied to them.",
@@ -130,6 +127,13 @@
           "description": "List of checks to apply to files matching the pattern.",
           "items": {
             "$ref": "#/definitions/Check"
+          },
+          "type": "array"
+        },
+        "concerns": {
+          "description": "List of concern IDs that this checkset is attached to.",
+          "items": {
+            "type": "string"
           },
           "type": "array"
         },
@@ -183,21 +187,6 @@
       "required": ["query", "type"],
       "type": "object"
     },
-    "DistillConfig": {
-      "additionalProperties": false,
-      "description": "Root configuration interface for distill.yml files. Defines all the checksets for processing git diffs.",
-      "properties": {
-        "checksets": {
-          "description": "List of file checksets that define how to process different types of files.",
-          "items": {
-            "$ref": "#/definitions/FileCheckset"
-          },
-          "type": "array"
-        }
-      },
-      "required": ["checksets"],
-      "type": "object"
-    },
     "RegexFilterConfig": {
       "additionalProperties": false,
       "description": "Configuration for the regex filter. Extracts content matching a regular expression pattern.",
@@ -220,6 +209,91 @@
       },
       "required": ["pattern", "type"],
       "type": "object"
+    },
+    "ReportAction": {
+      "additionalProperties": false,
+      "description": "A \"report\" action produces a text report about the change. It can be routed many places, including to stdout or an API call (for example, a GitHub comment).",
+      "properties": {
+        "template": {
+          "description": "Handlebars template for the comment to produce. Accepts markdown, and receives a FilterResult as its evaluation context.",
+          "type": "string"
+        },
+        "type": {
+          "const": "report",
+          "description": "Discriminant for tagged union. Implied when 'template' is present.",
+          "type": "string"
+        },
+        "urgency": {
+          "description": "Urgency of report. Higher values indicate more important/urgent reports. Reports are sorted by urgency (highest first) when output.",
+          "type": "number"
+        }
+      },
+      "required": ["template", "urgency"],
+      "type": "object"
+    },
+    "RunAction": {
+      "additionalProperties": false,
+      "description": "A \"run\" action runs an arbitrary command that receives details about the change as environment variables.",
+      "properties": {
+        "args": {
+          "description": "If the command requires arguments, they can be evaluated here as Handlebars templates which receive a FilterResult as evaluation context.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "command": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Path to the command. Can be a string or an array of strings which will be evaluated as arguments to produce the command path."
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "If the default environment variables don't suffice, you can define new ones as Handlebars templates which receive a FilterResult as evaluation context.",
+          "type": "object"
+        },
+        "type": {
+          "const": "run",
+          "description": "Discriminant for tagged union. Implied when 'command' is present.",
+          "type": "string"
+        }
+      },
+      "required": ["args", "command", "env"],
+      "type": "object"
+    },
+    "Stakeholder": {
+      "additionalProperties": false,
+      "description": "A stakeholder interested in a set of concerns.",
+      "properties": {
+        "contactMethod": {
+          "description": "How to contact the stakeholder. Examples: \"github-comment-mention\", \"github-reviewer-request\", \"github-assign\", \"webhook\".",
+          "type": "string"
+        },
+        "description": {
+          "description": "A description of the stakeholder's role or interest.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name of the stakeholder (e.g. a team or person).",
+          "type": "string"
+        }
+      },
+      "required": ["contactMethod", "name"],
+      "type": "object"
+    },
+    "SupportedExtension": {
+      "type": ["string"]
     },
     "TsqFilterConfig": {
       "additionalProperties": false,
@@ -249,25 +323,27 @@
       "type": "object"
     },
     "TsqSupportedExtension": {
-      "description": "Supported file extensions for tree-sitter language detection.",
-      "enum": [
-        ".c",
-        ".cpp",
-        ".cxx",
-        ".go",
-        ".h",
-        ".hpp",
-        ".java",
-        ".js",
-        ".json",
-        ".jsx",
-        ".mjs",
-        ".py",
-        ".rs",
-        ".ts",
-        ".tsx"
-      ],
-      "type": "string"
+      "$ref": "#/definitions/SupportedExtension"
+    },
+    "UpdateConcernContextAction": {
+      "additionalProperties": false,
+      "description": "An action that updates the shared context of the concerns attached to the checkset.",
+      "properties": {
+        "set": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Key-value pairs to set in the concern context. Values can be Handlebars templates which receive a FilterResult as evaluation context.",
+          "type": "object"
+        },
+        "type": {
+          "const": "set",
+          "description": "Discriminant for tagged union. Implied when 'set' is present.",
+          "type": "string"
+        }
+      },
+      "required": ["set"],
+      "type": "object"
     },
     "XPathFilterConfig": {
       "additionalProperties": false,
