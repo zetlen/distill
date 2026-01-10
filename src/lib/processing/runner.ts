@@ -1,9 +1,9 @@
 import {minimatch} from 'minimatch'
 
-import type {DefinedBlock, DistillConfig, NotifyConfig, Signal, WatchConfig} from '../configuration/config.js'
+import type {DefinedBlock, DistillConfig, NotifyConfig, Signal} from '../configuration/config.js'
 import type {File, FileVersions} from '../diff/parser.js'
 import type {ReportOutput} from '../reports/index.js'
-import type {ConcernContext, ProcessingContext} from './types.js'
+import type {ProcessingContext} from './types.js'
 
 import {resolveReport, resolveSignal, resolveWatch} from '../configuration/resolver.js'
 import {executeReport} from '../reports/index.js'
@@ -11,8 +11,6 @@ import {applyWatch} from '../watches/index.js'
 
 /** Result of processing files through all concerns */
 export interface ProcessingResult {
-  /** Map of concern IDs to their accumulated context values */
-  concerns: ConcernContext
   /** All reports generated */
   reports: ReportOutput[]
 }
@@ -43,7 +41,7 @@ export async function processFiles(
     }
   }
 
-  return {concerns: context.concerns, reports}
+  return {reports}
 }
 
 /** Options for processing a signal against a file */
@@ -78,9 +76,7 @@ async function processSignal(options: ProcessSignalOptions): Promise<ReportOutpu
   const versions = await getFileVersions(file, context)
 
   // Apply the watch extraction
-  // We need to pass the extraction config (without include) to applyWatch
-  const extractionConfig = getWatchExtractionConfig(watch)
-  const watchResult = await applyWatch(extractionConfig, versions, filePath)
+  const watchResult = await applyWatch(watch, versions, filePath)
 
   if (!watchResult) {
     return []
@@ -104,16 +100,6 @@ async function processSignal(options: ProcessSignalOptions): Promise<ReportOutpu
 function matchesInclude(filePath: string, include: string | string[]): boolean {
   const patterns = Array.isArray(include) ? include : [include]
   return patterns.some((pattern) => minimatch(filePath, pattern))
-}
-
-/**
- * Extract the extraction-specific config from a WatchConfig (without include).
- * This is needed because applyWatch expects the old FilterConfig format.
- */
-function getWatchExtractionConfig(watch: WatchConfig): WatchConfig {
-  // The watch already has the type and type-specific properties
-  // applyWatch will use the type discriminant to route to the correct handler
-  return watch
 }
 
 /**

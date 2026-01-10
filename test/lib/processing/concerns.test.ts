@@ -6,7 +6,7 @@ import {processFiles} from '../../../src/lib/processing/runner.js'
 import {ProcessingContext} from '../../../src/lib/processing/types.js'
 
 describe('Concerns Processing', () => {
-  it('updates concern context when signal triggers', async () => {
+  it('generates a report when a signal is triggered', async () => {
     const config: DistillConfig = {
       concerns: {
         'my-concern': {
@@ -28,7 +28,6 @@ describe('Concerns Processing', () => {
     }
 
     const context: ProcessingContext = {
-      concerns: {},
       contentProvider: async (ref) => (ref === 'HEAD' ? 'foo' : ''),
       refs: {base: 'BASE', head: 'HEAD'},
     }

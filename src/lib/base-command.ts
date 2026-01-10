@@ -1,6 +1,5 @@
 import {Command, Flags, Interfaces} from '@oclif/core'
 
-import type {ConcernContext} from '../lib/processing/types.js'
 import type {ReportMetadata, ReportOutput} from '../lib/reports/index.js'
 
 // Type helpers for inherited flags and args
@@ -11,7 +10,6 @@ export type InferredArgs<T extends typeof Command> = Interfaces.InferredArgs<T['
 
 /** JSON output structure for all commands */
 export interface JsonOutput {
-  concerns: ConcernContext
   reports: ReportMetadata[]
 }
 
@@ -66,8 +64,8 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
    * When JSON is enabled, returns data for oclif to stringify including concerns.
    * Otherwise, logs text output to stdout.
    */
-  protected outputReports(options: {concerns?: ConcernContext; reports: ReportOutput[]}): JsonOutput | void {
-    const {concerns = {}, reports} = options
+  protected outputReports(options: {reports: ReportOutput[]}): JsonOutput | void {
+    const {reports} = options
 
     const jsonReports = reports.map(
       (report) =>
@@ -80,7 +78,7 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
 
     if (this.jsonEnabled()) {
       // Return for oclif to handle JSON output
-      return {concerns, reports: jsonReports}
+      return {reports: jsonReports}
     }
 
     // Normal text output
