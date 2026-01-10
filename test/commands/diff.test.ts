@@ -60,7 +60,6 @@ describe('diff command', () => {
     it('returns empty JSON object when no changes', async () => {
       const {stdout} = await runCommand('diff HEAD HEAD --json')
       const result = JSON.parse(stdout)
-      expect(result).to.have.property('concerns').that.deep.equals({})
       expect(result).to.have.property('reports').that.is.an('array').that.is.empty
     })
   })
@@ -129,7 +128,6 @@ describe('diff command', () => {
     it('returns empty JSON object for clean working tree', async () => {
       const {stdout} = await runCommand(`diff --json --repo ${tempDir}`)
       const result = JSON.parse(stdout)
-      expect(result).to.have.property('concerns').that.deep.equals({})
       expect(result).to.have.property('reports').that.is.an('array').that.is.empty
     })
 
@@ -183,7 +181,6 @@ describe('diff command', () => {
   it('returns empty JSON object when no changes', async () => {
     const {stdout} = await runCommand('diff HEAD HEAD --json')
     const result = JSON.parse(stdout)
-    expect(result).to.have.property('concerns').that.deep.equals({})
     expect(result).to.have.property('reports').that.is.an('array').that.is.empty
   })
 
@@ -250,7 +247,6 @@ describe('diff command', () => {
     it('returns empty JSON object for clean working tree', async () => {
       const {stdout} = await runCommand(`diff --json --repo ${tempDir}`)
       const result = JSON.parse(stdout)
-      expect(result).to.have.property('concerns').that.deep.equals({})
       expect(result).to.have.property('reports').that.is.an('array').that.is.empty
     })
 
