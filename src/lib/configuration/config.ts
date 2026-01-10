@@ -1,243 +1,282 @@
-import type {AstGrepFilterConfig} from '../focuses/ast-grep.js'
-import type {JqFilterConfig} from '../focuses/jq.js'
-import type {RegexFilterConfig} from '../focuses/regex.js'
-import type {TsqFilterConfig} from '../focuses/tsq.js'
-import type {XPathFilterConfig} from '../focuses/xpath.js'
-
-// Re-export focus config types for convenience
-export type {AstGrepFilterConfig} from '../focuses/ast-grep.js'
-export type {JqFilterConfig} from '../focuses/jq.js'
-export type {RegexFilterConfig} from '../focuses/regex.js'
-export type {TsqFilterConfig} from '../focuses/tsq.js'
-/**
- * Re-export FocusResult from focuses module for backwards compatibility.
- */
-export type {FilterResult} from '../focuses/types.js'
-
-export type {XPathFilterConfig} from '../focuses/xpath.js'
+// =============================================================================
+// DISTILL CONFIGURATION
+// =============================================================================
+// Core concepts:
+// - Concern: An area of governance interest (security, api-contracts, etc.)
+// - Signal: What to detect and how to respond (watch + report + notify)
+// - Watch: File patterns + extraction type (jq, regex, tsq, ast-grep, xpath)
+// - Report: Output format (type + template)
+// - Notify: Channel → target dictionary
+// =============================================================================
 
 // =============================================================================
-// FOCUS CONFIGURATION (formerly "Filter")
-// A focus extracts and transforms content from file versions for comparison.
+// WATCH CONFIGURATION
+// A watch defines file patterns and how to extract relevant content.
 // =============================================================================
 
 /**
- * Union type of all supported focus configurations.
- * Each focus type has its own specific properties with the 'type' field as discriminant.
- *
- * @example AstGrepFilterConfig - For ast-grep pattern matching
- * @example JqFilterConfig - For JSON processing with jq
- * @example RegexFilterConfig - For regex pattern matching
- * @example XPathFilterConfig - For XML/HTML XPath queries
- * @example TsqFilterConfig - For tree-sitter AST queries
+ * Base properties shared by all watch types.
  */
-export type FocusConfig = AstGrepFilterConfig | JqFilterConfig | RegexFilterConfig | TsqFilterConfig | XPathFilterConfig
-
-/**
- * All supported focus type names.
- */
-export type FocusType = FocusConfig['type']
-
-/**
- * @deprecated Use FocusConfig instead
- */
-export type FilterConfig = FocusConfig
-
-/**
- * @deprecated Use FocusType instead
- */
-export type FilterType = FocusType
-
-// =============================================================================
-// VIEWER CONFIGURATION (formerly "Action")
-// A viewer processes the results of a focus comparison.
-// =============================================================================
-
-/**
- * A "report" viewer produces a text report about the change.
- * It can be routed many places, including to stdout or an API call
- * (for example, a GitHub comment).
- */
-export interface ReportViewer {
+export interface WatchBase {
   /**
-   * Handlebars template for the comment to produce. Accepts markdown,
-   * and receives a FocusResult as its evaluation context.
+   * Glob pattern(s) for files to watch.
+   * Can be a single pattern or an array of patterns.
+   * Uses minimatch syntax for pattern matching.
+   *
+   * @example "package.json"
+   * @example ["package.json", "yarn.lock"]
+   * @example "src/**\/*.ts"
+   */
+  include: string | string[]
+}
+
+/**
+ * Configuration for the jq watch type.
+ * Uses the jq command-line tool to extract/transform JSON content.
+ */
+export interface JqWatch extends WatchBase {
+  /**
+   * The jq query expression to apply to JSON content.
+   * See https://jqlang.github.io/jq/manual/ for syntax reference.
+   */
+  query: string
+  type: 'jq'
+}
+
+/**
+ * Configuration for the regex watch type.
+ * Extracts content matching a regular expression pattern.
+ */
+export interface RegexWatch extends WatchBase {
+  /**
+   * Optional regex flags to modify matching behavior.
+   * The 'g' (global) and 'm' (multiline) flags are always applied automatically.
+   */
+  flags?: string
+  /**
+   * The regular expression pattern to match.
+   * Uses JavaScript regex syntax.
+   */
+  pattern: string
+  type: 'regex'
+}
+
+/**
+ * Configuration for the tsq (tree-sitter query) watch type.
+ * Extracts AST nodes using tree-sitter's S-expression query syntax.
+ */
+export interface TsqWatch extends WatchBase {
+  /**
+   * Optional capture name to filter results.
+   */
+  capture?: string
+  /**
+   * Optional file extension to override language detection.
+   */
+  language?: string
+  /**
+   * The tree-sitter query pattern using S-expression syntax.
+   */
+  query: string
+  type: 'tsq'
+}
+
+/**
+ * Pattern object for ast-grep with context and selector.
+ */
+export interface AstGrepPatternObject {
+  /**
+   * Full code snippet providing context for parsing.
+   */
+  context: string
+  /**
+   * AST node type to select from the matched context.
+   */
+  selector: string
+}
+
+/**
+ * Configuration for the ast-grep watch type.
+ * Extracts AST nodes using ast-grep's pattern syntax.
+ */
+export interface AstGrepWatch extends WatchBase {
+  /**
+   * The language to parse the code as.
+   */
+  language: string
+  /**
+   * The pattern to match against. Can be a string or object with context/selector.
+   */
+  pattern: AstGrepPatternObject | string
+  type: 'ast-grep'
+}
+
+/**
+ * Configuration for the xpath watch type.
+ * Extracts nodes from XML/HTML content using XPath expressions.
+ */
+export interface XPathWatch extends WatchBase {
+  /**
+   * The XPath expression to evaluate.
+   */
+  expression: string
+  /**
+   * Optional namespace prefix mappings.
+   */
+  namespaces?: Record<string, string>
+  type: 'xpath'
+}
+
+/**
+ * Union type of all supported watch configurations.
+ */
+export type WatchConfig = AstGrepWatch | JqWatch | RegexWatch | TsqWatch | XPathWatch
+
+/**
+ * All supported watch type names.
+ */
+export type WatchType = WatchConfig['type']
+
+// =============================================================================
+// REPORT CONFIGURATION
+// A report defines how to format the output when a signal triggers.
+// =============================================================================
+
+/**
+ * A handlebars report renders a template with the watch results.
+ */
+export interface HandlebarsReport {
+  /**
+   * Handlebars template for the report.
+   * Receives watch result context including diffText, filePath, etc.
    */
   template: string
   /**
-   * Discriminant for tagged union. Implied when 'template' is present.
+   * Report type discriminant.
    */
-  type?: 'report'
+  type: 'handlebars'
 }
 
+// Future report types can be added here:
+// export interface JsonReport { type: 'json'; schema?: string }
+// export interface SarifReport { type: 'sarif' }
+
 /**
- * A "run" viewer runs an arbitrary command that receives details about the
- * change as environment variables.
+ * Union type of all supported report configurations.
+ * Currently only handlebars is supported.
  */
-export interface RunViewer {
+export type ReportConfig = HandlebarsReport
+
+/**
+ * All supported report type names.
+ */
+export type ReportType = ReportConfig['type']
+
+// =============================================================================
+// NOTIFY CONFIGURATION
+// Notify defines who to tell and how when a signal triggers.
+// =============================================================================
+
+/**
+ * Notification channel types and their target formats.
+ */
+export interface NotifyConfig {
   /**
-   * If the command requires arguments, they can be evaluated here as Handlebars
-   * templates which receive a FocusResult as evaluation context.
+   * Email address to notify.
+   * @example "security@company.com"
    */
-  args: string[]
+  email?: string
   /**
-   * Path to the command. Can be a string or an array of strings which will be
-   * evaluated as arguments to produce the command path.
+   * GitHub username or team to mention/request review.
+   * @example "@security-team"
    */
-  command: string | string[]
+  github?: string
   /**
-   * If the default environment variables don't suffice, you can define new ones
-   * as Handlebars templates which receive a FocusResult as evaluation context.
+   * Jira issue key to comment on.
+   * @example "SEC-123"
    */
-  env: Record<string, string>
+  jira?: string
   /**
-   * Discriminant for tagged union. Implied when 'command' is present.
+   * Slack channel or user to notify.
+   * @example "#security-alerts"
    */
-  type?: 'run'
+  slack?: string
+  /**
+   * Webhook URL to POST to.
+   * @example "https://hooks.example.com/notify"
+   */
+  webhook?: string
 }
 
+// =============================================================================
+// SIGNAL CONFIGURATION
+// A signal combines watch + report + notify into a complete detection unit.
+// =============================================================================
+
 /**
- * A viewer that updates the shared context of the subjects attached to the projection.
+ * A signal defines what to detect (watch), how to format output (report),
+ * and who to notify when triggered.
  */
-export interface UpdateSubjectContextViewer {
+export interface Signal {
   /**
-   * Key-value pairs to set in the subject context.
-   * Values can be Handlebars templates which receive a FocusResult as evaluation context.
+   * Notification channels and targets.
+   * Each key is a channel type, value is the target.
    */
-  set: Record<string, string>
+  notify?: NotifyConfig
   /**
-   * Discriminant for tagged union. Implied when 'set' is present.
+   * How to format the output when the signal triggers.
    */
-  type?: 'set'
+  report: ReportConfig | ReportRef
+  /**
+   * What to watch for - file patterns and extraction configuration.
+   */
+  watch: WatchConfig | WatchRef
 }
-
-/**
- * Union type of all supported viewers.
- * Viewers can be discriminated by:
- * - 'template' property -> ReportViewer
- * - 'command' property -> RunViewer
- * - 'set' property -> UpdateSubjectContextViewer
- */
-export type Viewer = ReportViewer | RunViewer | UpdateSubjectContextViewer
-
-/**
- * @deprecated Use ReportViewer instead
- */
-export type ReportAction = ReportViewer
-
-/**
- * @deprecated Use RunViewer instead
- */
-export type RunAction = RunViewer
-
-/**
- * @deprecated Use UpdateSubjectContextViewer instead
- */
-export type UpdateConcernContextAction = UpdateSubjectContextViewer
-
-/**
- * @deprecated Use Viewer instead
- */
-export type Action = Viewer
 
 // =============================================================================
 // REFERENCE SYSTEM
-// Allows reusing defined projections, focuses, and viewers via references.
+// Allows reusing defined watches, reports, and signals via references.
 // =============================================================================
 
 /**
  * A reference to a defined item in the `defined` block.
- * Format: "#defined/<type>/<name>" where type is projections, focuses, or viewers.
+ * Format: "#defined/<type>/<name>" where type is watches, reports, or signals.
  */
 export interface UseReference {
   use: string
 }
 
 /**
- * Either an inline item or a reference to a defined item.
+ * Either an inline watch or a reference to a defined watch.
  */
-export type FocusRef = FocusConfig | UseReference
-export type ViewerRef = UseReference | Viewer
+export type WatchRef = UseReference | WatchConfig
+
+/**
+ * Either an inline report or a reference to a defined report.
+ */
+export type ReportRef = ReportConfig | UseReference
+
+/**
+ * Either an inline signal or a reference to a defined signal.
+ */
+export type SignalRef = Signal | UseReference
 
 // =============================================================================
-// PROJECTION (formerly "Check" + file pattern from "Checkset")
-// A projection is a self-contained rule: file pattern + focuses + viewers.
+// CONCERN CONFIGURATION
+// A concern represents an area of governance interest.
 // =============================================================================
 
 /**
- * A projection defines a file pattern, focuses to apply, and viewers to execute.
- * This combines what was previously split between FileCheckset and Check.
+ * A concern is an area of governance interest (e.g., security, api-contracts).
+ * It contains signals that define what to watch and how to respond.
  */
-export interface Projection {
+export interface Concern {
   /**
-   * Focuses to apply to the file content.
-   * Each focus processes the file and produces artifacts for comparison.
-   * If all focuses produce a meaningful diff, the viewers are triggered.
-   * Can be inline configurations or references to defined focuses.
+   * Signals attached to this concern.
+   * Each signal defines what to watch and how to respond.
    */
-  focuses: FocusRef[]
-  /**
-   * Glob pattern for files to which this projection applies.
-   * Uses minimatch syntax for pattern matching.
-   */
-  include: string
-  /**
-   * Viewers to run when the projection is triggered.
-   * Will run once per file that matches the projection's focuses.
-   * Can be inline configurations or references to defined viewers.
-   */
-  viewers: ViewerRef[]
+  signals: SignalRef[]
 }
-
-/**
- * Either an inline projection or a reference to a defined projection.
- */
-export type ProjectionRef = Projection | UseReference
-
-// =============================================================================
-// SUBJECT (formerly "Concern")
-// A subject represents an area of interest with stakeholders and projections.
-// =============================================================================
-
-/**
- * A stakeholder interested in a set of subjects.
- */
-export interface Stakeholder {
-  /**
-   * How to contact the stakeholder.
-   * Examples: "github-comment-mention", "github-reviewer-request", "github-assign", "webhook".
-   */
-  contactMethod: string
-  /**
-   * A description of the stakeholder's role or interest.
-   */
-  description?: string
-  /**
-   * The name of the stakeholder (e.g. a team or person).
-   */
-  name: string
-}
-
-/**
- * A subject represents a specific area of interest or domain in the project.
- * Projections are attached to subjects to define what to monitor.
- */
-export interface Subject {
-  /**
-   * Projections attached to this subject.
-   * Can be inline definitions or references to defined projections.
-   */
-  projections: ProjectionRef[]
-  /**
-   * List of stakeholders associated with this subject.
-   */
-  stakeholders: Stakeholder[]
-}
-
-/**
- * @deprecated Use Subject instead
- */
-export type Concern = Subject
 
 // =============================================================================
 // DEFINED BLOCK
@@ -249,20 +288,20 @@ export type Concern = Subject
  */
 export interface DefinedBlock {
   /**
-   * Reusable focus configurations.
-   * Reference with: { use: "#defined/focuses/<name>" }
+   * Reusable report configurations.
+   * Reference with: { use: "#defined/reports/<name>" }
    */
-  focuses?: Record<string, FocusConfig>
+  reports?: Record<string, ReportConfig>
   /**
-   * Reusable projection configurations.
-   * Reference with: { use: "#defined/projections/<name>" }
+   * Reusable signal configurations.
+   * Reference with: { use: "#defined/signals/<name>" }
    */
-  projections?: Record<string, Projection>
+  signals?: Record<string, Signal>
   /**
-   * Reusable viewer configurations.
-   * Reference with: { use: "#defined/viewers/<name>" }
+   * Reusable watch configurations.
+   * Reference with: { use: "#defined/watches/<name>" }
    */
-  viewers?: Record<string, Viewer>
+  watches?: Record<string, WatchConfig>
 }
 
 // =============================================================================
@@ -270,46 +309,47 @@ export interface DefinedBlock {
 // =============================================================================
 
 /**
- * Root configuration interface for tiltshift.yml files.
- * Subjects contain projections that define how to process git diffs.
+ * Root configuration interface for distill.yml files.
+ * Concerns contain signals that define how to process git diffs.
  */
-export interface TiltshiftConfig {
+export interface DistillConfig {
+  /**
+   * Dictionary of concerns defined in the project.
+   * Keys are concern IDs (e.g., "security", "api-contracts").
+   */
+  concerns: Record<string, Concern>
   /**
    * Reusable definitions that can be referenced throughout the configuration.
    */
   defined?: DefinedBlock
+}
+
+// =============================================================================
+// FILTER RESULT (kept for processing pipeline)
+// =============================================================================
+
+/**
+ * Result of applying a watch to file versions.
+ */
+export interface FilterResult {
   /**
-   * Dictionary of subjects defined in the project.
-   * Keys are subject IDs.
+   * Symbolic context from the watch (e.g., class/function names).
    */
-  subjects: Record<string, Subject>
-}
-
-// =============================================================================
-// LEGACY TYPES (deprecated, for migration support)
-// =============================================================================
-
-/**
- * @deprecated Checksets are no longer used. Use Projection instead.
- */
-export interface Check {
-  actions: Action[]
-  filters: FilterConfig[]
-}
-
-/**
- * @deprecated Checksets are no longer used. Use subjects with projections instead.
- */
-export interface FileCheckset {
-  checks: Check[]
-  concerns?: string[]
-  include: string
-}
-
-/**
- * @deprecated Use TiltshiftConfig instead
- */
-export interface DistillConfig {
-  checksets: FileCheckset[]
-  concerns?: Record<string, Concern>
+  context?: Array<{name: string; type: string}>
+  /**
+   * The unified diff text between old and new artifacts.
+   */
+  diffText: string
+  /**
+   * The artifact extracted from the old version.
+   */
+  left: {artifact: string}
+  /**
+   * Line range within the filtered artifact.
+   */
+  lineRange?: {end: number; start: number}
+  /**
+   * The artifact extracted from the new version.
+   */
+  right: {artifact: string}
 }

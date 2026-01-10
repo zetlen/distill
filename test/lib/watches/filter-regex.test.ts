@@ -1,6 +1,6 @@
 import {expect} from 'chai'
 
-import {regexFilter} from '../../../src/lib/focuses/index.js'
+import {regexFilter} from '../../../src/lib/watches/index.js'
 import {fixtures} from '../../fixtures/loader.js'
 
 describe('regexFilter', () => {

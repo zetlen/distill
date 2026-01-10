@@ -7,29 +7,26 @@ Process code changes with semantic rules
 [![Downloads/week](https://img.shields.io/npm/dw/tiltshift.svg)](https://npmjs.org/package/tiltshift)
 
 <!-- toc -->
-
-- [tiltshift](#tiltshift)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Commands](#commands)
+* [tiltshift](#tiltshift)
+* [Usage](#usage)
+* [Configuration](#configuration)
+* [Commands](#commands)
 <!-- tocstop -->
 
 # Usage
 
 <!-- usage -->
-
 ```sh-session
-$ npm install -g @tiltshift/cli
-$ tiltshift COMMAND
+$ npm install -g @distill/cli
+$ distill COMMAND
 running command...
-$ tiltshift (--version)
-@tiltshift/cli/2.0.0 linux-x64 node-v24.12.0
-$ tiltshift --help [COMMAND]
+$ distill (--version)
+@distill/cli/2.0.0 darwin-arm64 node-v24.12.0
+$ distill --help [COMMAND]
 USAGE
-  $ tiltshift COMMAND
+  $ distill COMMAND
 ...
 ```
-
 <!-- usagestop -->
 
 # Configuration
@@ -107,25 +104,24 @@ subjects:
 # Commands
 
 <!-- commands -->
+* [`distill diff [BASE] [HEAD]`](#distill-diff-base-head)
+* [`distill help [COMMAND]`](#distill-help-command)
+* [`distill pr [PR]`](#distill-pr-pr)
 
-- [`tiltshift diff [BASE] [HEAD]`](#tiltshift-diff-base-head)
-- [`tiltshift help [COMMAND]`](#tiltshift-help-command)
-- [`tiltshift pr [PR]`](#tiltshift-pr-pr)
-
-## `tiltshift diff [BASE] [HEAD]`
+## `distill diff [BASE] [HEAD]`
 
 Annotate a git diff with semantic analysis based on configured rules.
 
 ```
 USAGE
-  $ tiltshift diff [BASE] [HEAD] [--json] [-c <value>] [-r <value>] [-s]
+  $ distill diff [BASE] [HEAD] [--json] [-c <value>] [-r <value>] [-s]
 
 ARGUMENTS
   [BASE]  Base commit-ish (e.g., HEAD~1, main). Defaults based on working tree state.
   [HEAD]  Head commit-ish (e.g., HEAD, feat/foo, . for working directory). Defaults to "."
 
 FLAGS
-  -c, --config=<value>  Path to the tiltshift configuration file (default: tiltshift.yml in repo root)
+  -c, --config=<value>  Path to the distill configuration file (default: distill.yml in repo root)
   -r, --repo=<value>    Path to git repository
   -s, --staged          Only check staged changes (when comparing with working directory)
 
@@ -143,28 +139,28 @@ DESCRIPTION
   *filtered artifact* (the code snippet shown in the report), NOT the original source file.
 
 EXAMPLES
-  $ tiltshift diff                  # auto-detect changes
+  $ distill diff                  # auto-detect changes
 
-  $ tiltshift diff --staged         # check staged changes only
+  $ distill diff --staged         # check staged changes only
 
-  $ tiltshift diff HEAD~1 HEAD
+  $ distill diff HEAD~1 HEAD
 
-  $ tiltshift diff main feat/foo
+  $ distill diff main feat/foo
 
-  $ tiltshift diff HEAD .           # compare HEAD to working directory
+  $ distill diff HEAD .           # compare HEAD to working directory
 
-  $ tiltshift diff main HEAD --repo ../other-project
+  $ distill diff main HEAD --repo ../other-project
 ```
 
-_See code: [src/commands/diff.ts](https://github.com/zetlen/tiltshift/blob/v2.0.0/src/commands/diff.ts)_
+_See code: [src/commands/diff.ts](https://github.com/zetlen/distill/blob/v2.0.0/src/commands/diff.ts)_
 
-## `tiltshift help [COMMAND]`
+## `distill help [COMMAND]`
 
-Display help for tiltshift.
+Display help for distill.
 
 ```
 USAGE
-  $ tiltshift help [COMMAND...] [-n]
+  $ distill help [COMMAND...] [-n]
 
 ARGUMENTS
   [COMMAND...]  Command to show help for.
@@ -173,24 +169,24 @@ FLAGS
   -n, --nested-commands  Include all nested commands in the output.
 
 DESCRIPTION
-  Display help for tiltshift.
+  Display help for distill.
 ```
 
 _See code: [@oclif/plugin-help](https://github.com/oclif/plugin-help/blob/v6.2.36/src/commands/help.ts)_
 
-## `tiltshift pr [PR]`
+## `distill pr [PR]`
 
 Annotate a GitHub Pull Request.
 
 ```
 USAGE
-  $ tiltshift pr [PR] [--json] [-c <value>] [-r <value>]
+  $ distill pr [PR] [--json] [-c <value>] [-r <value>]
 
 ARGUMENTS
   [PR]  PR number or URL (optional: detects PR for current branch if omitted)
 
 FLAGS
-  -c, --config=<value>  Path to the tiltshift configuration file (default: tiltshift.yml in repo root)
+  -c, --config=<value>  Path to the distill configuration file (default: distill.yml in repo root)
   -r, --repo=<value>    GitHub repository (owner/repo). Required if not running in a git repo.
 
 GLOBAL FLAGS
@@ -203,15 +199,14 @@ DESCRIPTION
   Requires GITHUB_TOKEN environment variable for authentication.
 
 EXAMPLES
-  $ tiltshift pr                                # auto-detect PR for current branch
+  $ distill pr                                # auto-detect PR for current branch
 
-  $ tiltshift pr 123                            # PR number (uses detected remote)
+  $ distill pr 123                            # PR number (uses detected remote)
 
-  $ tiltshift pr https://github.com/owner/repo/pull/123
+  $ distill pr https://github.com/owner/repo/pull/123
 
-  $ tiltshift pr 123 --repo owner/repo
+  $ distill pr 123 --repo owner/repo
 ```
 
-_See code: [src/commands/pr.ts](https://github.com/zetlen/tiltshift/blob/v2.0.0/src/commands/pr.ts)_
-
+_See code: [src/commands/pr.ts](https://github.com/zetlen/distill/blob/v2.0.0/src/commands/pr.ts)_
 <!-- commandsstop -->

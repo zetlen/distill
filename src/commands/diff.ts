@@ -68,14 +68,14 @@ When using --json, a "lineRange" field is included. Note that this range refers 
 
     // No changes detected - exit gracefully
     if (!resolved) {
-      return this.jsonEnabled() ? {reports: [], subjects: {}} : undefined
+      return this.jsonEnabled() ? {concerns: {}, reports: []} : undefined
     }
 
     const {base, diffOptions, head} = resolved
     this.debug('resolved refs', {base, diffOptions, head})
 
-    // Resolve config path (default to tiltshift.yml in repo root)
-    const configPath = this.flags.config ? resolve(process.cwd(), this.flags.config) : join(repoPath, 'tiltshift.yml')
+    // Resolve config path (default to distill.yml in repo root)
+    const configPath = this.flags.config ? resolve(process.cwd(), this.flags.config) : join(repoPath, 'distill.yml')
     this.debug('found config path', configPath)
 
     // Load configuration
@@ -86,7 +86,7 @@ When using --json, a "lineRange" field is included. Note that this range refers 
     const diffText = await getGitDiff(base, head, repoPath, diffOptions)
     if (!diffText.trim()) {
       if (this.jsonEnabled()) {
-        return {reports: [], subjects: {}}
+        return {concerns: {}, reports: []}
       }
 
       this.log('No changes between %s and %s', base, head)
@@ -97,7 +97,7 @@ When using --json, a "lineRange" field is included. Note that this range refers 
     const {files} = parseDiff(diffText)
     if (files.length === 0) {
       if (this.jsonEnabled()) {
-        return {reports: [], subjects: {}}
+        return {concerns: {}, reports: []}
       }
 
       this.log('No files found in diff')
@@ -121,9 +121,9 @@ When using --json, a "lineRange" field is included. Note that this range refers 
     }
 
     const result = await processFiles(files, config, {
+      concerns: {},
       contentProvider,
       refs,
-      subjects: {},
     })
 
     return this.outputReports(result)

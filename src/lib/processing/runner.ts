@@ -1,154 +1,119 @@
 import {minimatch} from 'minimatch'
 
-import type {
-  DefinedBlock,
-  FocusConfig,
-  Projection,
-  TiltshiftConfig,
-  UpdateSubjectContextViewer,
-  Viewer,
-} from '../configuration/config.js'
+import type {DefinedBlock, DistillConfig, NotifyConfig, Signal, WatchConfig} from '../configuration/config.js'
 import type {File, FileVersions} from '../diff/parser.js'
-import type {ReportOutput} from '../viewers/index.js'
-import type {ProcessingContext, SubjectContext} from './types.js'
+import type {ReportOutput} from '../reports/index.js'
+import type {ConcernContext, ProcessingContext} from './types.js'
 
-import {resolveFocus, resolveProjection, resolveViewer} from '../configuration/resolver.js'
-import {applyFilter, type FilterResult} from '../focuses/index.js'
-import {
-  executeReportViewer,
-  executeUpdateSubjectContextViewer,
-  isReportViewer,
-  isUpdateSubjectContextViewer,
-} from '../viewers/index.js'
+import {resolveReport, resolveSignal, resolveWatch} from '../configuration/resolver.js'
+import {executeReport} from '../reports/index.js'
+import {applyWatch} from '../watches/index.js'
 
-/** Result of processing files through all subjects */
+/** Result of processing files through all concerns */
 export interface ProcessingResult {
+  /** Map of concern IDs to their accumulated context values */
+  concerns: ConcernContext
+  /** All reports generated */
   reports: ReportOutput[]
-  subjects: SubjectContext
 }
 
+/**
+ * Process files through all concerns and their signals.
+ */
 export async function processFiles(
   files: File[],
-  config: TiltshiftConfig,
+  config: DistillConfig,
   context: ProcessingContext,
 ): Promise<ProcessingResult> {
   const reports: ReportOutput[] = []
 
   for (const file of files) {
-    for (const [subjectId, subject] of Object.entries(config.subjects)) {
-      for (const projectionRef of subject.projections) {
+    for (const [concernId, concern] of Object.entries(config.concerns)) {
+      for (const signalRef of concern.signals) {
         // eslint-disable-next-line no-await-in-loop
-        const projectionReports = await processProjection({
+        const signalReports = await processSignal({
+          concernId,
           context,
           defined: config.defined,
           file,
-          projectionRef,
-          subjectId,
+          signalRef,
         })
-        reports.push(...projectionReports)
+        reports.push(...signalReports)
       }
     }
   }
 
-  return {reports, subjects: context.subjects}
+  return {concerns: context.concerns, reports}
 }
 
-/** Options for processing a projection against a file */
-interface ProcessProjectionOptions {
+/** Options for processing a signal against a file */
+interface ProcessSignalOptions {
+  concernId: string
   context: ProcessingContext
   defined?: DefinedBlock
   file: File
-  projectionRef: Projection | {use: string}
-  subjectId: string
+  signalRef: Signal | {use: string}
 }
 
-async function processProjection(options: ProcessProjectionOptions): Promise<ReportOutput[]> {
-  const {context, defined, file, projectionRef, subjectId} = options
+/**
+ * Process a single signal against a file.
+ * Returns reports if the signal matches and produces output.
+ */
+async function processSignal(options: ProcessSignalOptions): Promise<ReportOutput[]> {
+  const {context, defined, file, signalRef} = options
   const filePath = file.newPath || file.oldPath
 
-  // Resolve the projection reference
-  const projection = resolveProjection(projectionRef, defined)
+  // Resolve the signal reference
+  const signal = resolveSignal(signalRef, defined)
 
-  if (!minimatch(filePath, projection.include)) {
+  // Resolve the watch reference
+  const watch = resolveWatch(signal.watch, defined)
+
+  // Check if file matches the watch's include pattern(s)
+  if (!matchesInclude(filePath, watch.include)) {
     return []
   }
 
+  // Get file versions for comparison
   const versions = await getFileVersions(file, context)
-  const reports: ReportOutput[] = []
 
-  // Resolve all focuses
-  const focuses: FocusConfig[] = projection.focuses.map((ref) => resolveFocus(ref, defined))
+  // Apply the watch extraction
+  // We need to pass the extraction config (without include) to applyWatch
+  const extractionConfig = getWatchExtractionConfig(watch)
+  const watchResult = await applyWatch(extractionConfig, versions, filePath)
 
-  // Apply focuses - all must pass
-  let focusResult: FilterResult | null = null
-  for (const focus of focuses) {
-    // eslint-disable-next-line no-await-in-loop
-    focusResult = await applyFilter(focus, versions, filePath)
-    if (!focusResult) {
-      return reports
-    }
+  if (!watchResult) {
+    return []
   }
 
-  // Execute viewers if we have a focus result
-  if (focusResult) {
-    // Resolve all viewers
-    const viewers: Viewer[] = projection.viewers.map((ref) => resolveViewer(ref, defined))
+  // Execute the report
+  const report = resolveReport(signal.report, defined)
+  const reportOutput = executeReport(report, watchResult, {filePath})
 
-    processViewers({
-      context,
-      filePath,
-      focusResult,
-      reports,
-      subjectId,
-      viewers,
-    })
+  // Attach notify config to report metadata for downstream processing
+  if (signal.notify) {
+    reportOutput.notify = signal.notify
   }
 
-  return reports
+  return [reportOutput]
 }
 
-/** Options for processing viewers from a triggered projection */
-interface ProcessViewersOptions {
-  context: ProcessingContext
-  filePath: string
-  focusResult: FilterResult
-  reports: ReportOutput[]
-  subjectId: string
-  viewers: Viewer[]
+/**
+ * Check if a file path matches an include pattern (string or array of strings).
+ */
+function matchesInclude(filePath: string, include: string | string[]): boolean {
+  const patterns = Array.isArray(include) ? include : [include]
+  return patterns.some((pattern) => minimatch(filePath, pattern))
 }
 
-function processViewers(options: ProcessViewersOptions): void {
-  const {context, filePath, focusResult, reports, subjectId, viewers} = options
-
-  for (const viewer of viewers) {
-    if (isReportViewer(viewer)) {
-      const report = executeReportViewer(viewer, focusResult, {filePath})
-      reports.push(report)
-    } else if (isUpdateSubjectContextViewer(viewer)) {
-      applySubjectContextUpdates({context, filePath, focusResult, subjectId, viewer})
-    }
-  }
-}
-
-/** Options for applying subject context updates */
-interface ApplySubjectContextUpdatesOptions {
-  context: ProcessingContext
-  filePath: string
-  focusResult: FilterResult
-  subjectId: string
-  viewer: UpdateSubjectContextViewer
-}
-
-function applySubjectContextUpdates(options: ApplySubjectContextUpdatesOptions): void {
-  const {context, filePath, focusResult, subjectId, viewer} = options
-
-  const updates = executeUpdateSubjectContextViewer(viewer, focusResult, {filePath})
-
-  if (!context.subjects[subjectId]) {
-    context.subjects[subjectId] = {}
-  }
-
-  context.subjects[subjectId] = {...context.subjects[subjectId], ...updates}
+/**
+ * Extract the extraction-specific config from a WatchConfig (without include).
+ * This is needed because applyWatch expects the old FilterConfig format.
+ */
+function getWatchExtractionConfig(watch: WatchConfig): WatchConfig {
+  // The watch already has the type and type-specific properties
+  // applyWatch will use the type discriminant to route to the correct handler
+  return watch
 }
 
 /**
@@ -170,3 +135,20 @@ async function getFileVersions(file: File, context: ProcessingContext): Promise<
 
   return {newContent, oldContent}
 }
+
+// =============================================================================
+// EXTENDED REPORT OUTPUT (with notify info)
+// =============================================================================
+
+declare module '../reports/index.js' {
+  interface ReportOutput {
+    notify?: NotifyConfig
+  }
+}
+
+// =============================================================================
+// LEGACY EXPORTS (for migration support)
+// =============================================================================
+
+/** @deprecated Use ConcernContext instead */
+export type {ConcernContext as SubjectContext} from './types.js'

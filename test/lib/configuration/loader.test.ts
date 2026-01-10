@@ -2,7 +2,7 @@ import {expect} from 'chai'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {Projection} from '../../../src/lib/configuration/config.js'
+import {Signal} from '../../../src/lib/configuration/config.js'
 import {loadConfig} from '../../../src/lib/configuration/loader.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -12,25 +12,29 @@ describe('configuration/loader', () => {
     const configPath = resolve(__dirname, '../../fixtures/test-config.yml')
     const config = await loadConfig(configPath)
 
-    expect(config).to.have.property('subjects')
-    expect(config.subjects).to.be.an('object')
-    expect(config.subjects['test-subject']).to.exist
+    expect(config).to.have.property('concerns')
+    expect(config.concerns).to.be.an('object')
+    expect(config.concerns['test-concern']).to.exist
   })
 
-  it('parses nested projection structures', async () => {
+  it('parses nested signal structures', async () => {
     const configPath = resolve(__dirname, '../../fixtures/test-config.yml')
     const config = await loadConfig(configPath)
 
-    const subject = config.subjects['test-subject']
-    expect(subject.projections).to.be.an('array').with.lengthOf(1)
+    const concern = config.concerns['test-concern']
+    expect(concern.signals).to.be.an('array').with.lengthOf(1)
 
-    // Cast to Projection since we know the test fixture uses inline projections
-    const projection = subject.projections[0] as Projection
-    expect(projection).to.have.property('include', 'package.json')
-    expect(projection).to.have.property('focuses').that.is.an('array').with.lengthOf(1)
-    expect(projection.focuses[0]).to.deep.include({query: '.dependencies', type: 'jq'})
+    // Cast to Signal since we know the test fixture uses inline signals
+    const signal = concern.signals[0] as Signal
+    expect(signal).to.have.property('watch')
+    expect(signal.watch).to.deep.include({
+      include: 'package.json',
+      query: '.dependencies',
+      type: 'jq',
+    })
 
-    expect(projection).to.have.property('viewers').that.is.an('array').with.lengthOf(1)
-    expect(projection.viewers[0]).to.have.property('template').that.includes('Test Report')
+    expect(signal).to.have.property('report')
+    expect(signal.report).to.have.property('type', 'handlebars')
+    expect(signal.report).to.have.property('template').that.includes('Test Report')
   })
 })

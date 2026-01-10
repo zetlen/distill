@@ -1,21 +1,17 @@
-subjects:
-  test-subject:
-    stakeholders:
-      - name: Test Stakeholder
-        description: For testing
-        contactMethod: test@example.com
+concerns:
+  test-concern:
+    signals:
+      - watch:
+          include: 'package.json'
+          type: 'jq'
+          query: '.dependencies'
+        report:
+          type: 'handlebars'
+          template: |
+            # Test Report
 
-    projections:
-      - include: 'package.json'
-        focuses:
-          - type: 'jq'
-            query: '.dependencies'
-        viewers:
-          - template: |
-              # Test Report
+            Found changes in dependencies.
 
-              Found changes in dependencies.
-
-              ```diff
-              {{diffText}}
-              ```
+            ```diff
+            {{diffText}}
+            ```

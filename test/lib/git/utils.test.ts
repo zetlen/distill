@@ -21,7 +21,7 @@ describe('git utils', () => {
 
   beforeEach(async () => {
     // Use realpath to resolve symlinks (macOS /var -> /private/var)
-    tempDir = await realpath(await mkdtemp(join(tmpdir(), 'tiltshift-test-')))
+    tempDir = await realpath(await mkdtemp(join(tmpdir(), 'distill-test-')))
   })
 
   afterEach(async () => {

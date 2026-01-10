@@ -1,7 +1,7 @@
 import {Command, Flags, Interfaces} from '@oclif/core'
 
-import type {SubjectContext} from '../lib/processing/types.js'
-import type {ReportMetadata, ReportOutput} from '../lib/viewers/index.js'
+import type {ConcernContext} from '../lib/processing/types.js'
+import type {ReportMetadata, ReportOutput} from '../lib/reports/index.js'
 
 // Type helpers for inherited flags and args
 export type InferredFlags<T extends typeof Command> = Interfaces.InferredFlags<
@@ -11,12 +11,12 @@ export type InferredArgs<T extends typeof Command> = Interfaces.InferredArgs<T['
 
 /** JSON output structure for all commands */
 export interface JsonOutput {
+  concerns: ConcernContext
   reports: ReportMetadata[]
-  subjects: SubjectContext
 }
 
 /**
- * Base command for tiltshift CLI.
+ * Base command for distill CLI.
  * Provides shared flags and JSON output handling.
  *
  * ## Error Handling Patterns
@@ -40,7 +40,7 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
   static baseFlags = {
     config: Flags.string({
       char: 'c',
-      description: 'Path to the tiltshift configuration file (default: tiltshift.yml in repo root)',
+      description: 'Path to the distill configuration file (default: distill.yml in repo root)',
     }),
   }
   // Enable built-in --json flag for all commands
@@ -63,11 +63,11 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
 
   /**
    * Output reports.
-   * When JSON is enabled, returns data for oclif to stringify including subjects.
+   * When JSON is enabled, returns data for oclif to stringify including concerns.
    * Otherwise, logs text output to stdout.
    */
-  protected outputReports(options: {reports: ReportOutput[]; subjects?: SubjectContext}): JsonOutput | void {
-    const {reports, subjects = {}} = options
+  protected outputReports(options: {concerns?: ConcernContext; reports: ReportOutput[]}): JsonOutput | void {
+    const {concerns = {}, reports} = options
 
     const jsonReports = reports.map(
       (report) =>
@@ -80,7 +80,7 @@ export abstract class BaseCommand<T extends typeof Command> extends Command {
 
     if (this.jsonEnabled()) {
       // Return for oclif to handle JSON output
-      return {reports: jsonReports, subjects}
+      return {concerns, reports: jsonReports}
     }
 
     // Normal text output

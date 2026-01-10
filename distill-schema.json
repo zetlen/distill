@@ -1,0 +1,420 @@
+{
+  "$ref": "#/definitions/DistillConfig",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "AstGrepPatternObject": {
+      "additionalProperties": false,
+      "description": "Pattern object for ast-grep with context and selector.",
+      "properties": {
+        "context": {
+          "description": "Full code snippet providing context for parsing.",
+          "type": "string"
+        },
+        "selector": {
+          "description": "AST node type to select from the matched context.",
+          "type": "string"
+        }
+      },
+      "required": ["context", "selector"],
+      "type": "object"
+    },
+    "AstGrepWatch": {
+      "additionalProperties": false,
+      "description": "Configuration for the ast-grep watch type. Extracts AST nodes using ast-grep's pattern syntax.",
+      "properties": {
+        "include": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Glob pattern(s) for files to watch. Can be a single pattern or an array of patterns. Uses minimatch syntax for pattern matching.",
+          "examples": ["package.json", ["package.json", "yarn.lock"], "src/**/*.ts"]
+        },
+        "language": {
+          "description": "The language to parse the code as.",
+          "type": "string"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AstGrepPatternObject"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "The pattern to match against. Can be a string or object with context/selector."
+        },
+        "type": {
+          "const": "ast-grep",
+          "type": "string"
+        }
+      },
+      "required": ["include", "language", "pattern", "type"],
+      "type": "object"
+    },
+    "Concern": {
+      "additionalProperties": false,
+      "description": "A concern is an area of governance interest (e.g., security, api-contracts). It contains signals that define what to watch and how to respond.",
+      "properties": {
+        "signals": {
+          "description": "Signals attached to this concern. Each signal defines what to watch and how to respond.",
+          "items": {
+            "$ref": "#/definitions/SignalRef"
+          },
+          "type": "array"
+        }
+      },
+      "required": ["signals"],
+      "type": "object"
+    },
+    "DefinedBlock": {
+      "additionalProperties": false,
+      "description": "Block of reusable definitions that can be referenced via UseReference.",
+      "properties": {
+        "reports": {
+          "additionalProperties": {
+            "$ref": "#/definitions/ReportConfig"
+          },
+          "description": "Reusable report configurations. Reference with: { use: \"#defined/reports/<name>\" }",
+          "type": "object"
+        },
+        "signals": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Signal"
+          },
+          "description": "Reusable signal configurations. Reference with: { use: \"#defined/signals/<name>\" }",
+          "type": "object"
+        },
+        "watches": {
+          "additionalProperties": {
+            "$ref": "#/definitions/WatchConfig"
+          },
+          "description": "Reusable watch configurations. Reference with: { use: \"#defined/watches/<name>\" }",
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "DistillConfig": {
+      "additionalProperties": false,
+      "description": "Root configuration interface for distill.yml files. Concerns contain signals that define how to process git diffs.",
+      "properties": {
+        "concerns": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Concern"
+          },
+          "description": "Dictionary of concerns defined in the project. Keys are concern IDs (e.g., \"security\", \"api-contracts\").",
+          "type": "object"
+        },
+        "defined": {
+          "$ref": "#/definitions/DefinedBlock",
+          "description": "Reusable definitions that can be referenced throughout the configuration."
+        }
+      },
+      "required": ["concerns"],
+      "type": "object"
+    },
+    "HandlebarsReport": {
+      "additionalProperties": false,
+      "description": "A handlebars report renders a template with the watch results.",
+      "properties": {
+        "template": {
+          "description": "Handlebars template for the report. Receives watch result context including diffText, filePath, etc.",
+          "type": "string"
+        },
+        "type": {
+          "const": "handlebars",
+          "description": "Report type discriminant.",
+          "type": "string"
+        }
+      },
+      "required": ["template", "type"],
+      "type": "object"
+    },
+    "JqWatch": {
+      "additionalProperties": false,
+      "description": "Configuration for the jq watch type. Uses the jq command-line tool to extract/transform JSON content.",
+      "properties": {
+        "include": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Glob pattern(s) for files to watch. Can be a single pattern or an array of patterns. Uses minimatch syntax for pattern matching.",
+          "examples": ["package.json", ["package.json", "yarn.lock"], "src/**/*.ts"]
+        },
+        "query": {
+          "description": "The jq query expression to apply to JSON content. See https://jqlang.github.io/jq/manual/ for syntax reference.",
+          "type": "string"
+        },
+        "type": {
+          "const": "jq",
+          "type": "string"
+        }
+      },
+      "required": ["include", "query", "type"],
+      "type": "object"
+    },
+    "NotifyConfig": {
+      "additionalProperties": false,
+      "description": "Notification channel types and their target formats.",
+      "properties": {
+        "email": {
+          "description": "Email address to notify.",
+          "examples": ["security@company.com"],
+          "type": "string"
+        },
+        "github": {
+          "description": "GitHub username or team to mention/request review.",
+          "examples": ["@security-team"],
+          "type": "string"
+        },
+        "jira": {
+          "description": "Jira issue key to comment on.",
+          "examples": ["SEC-123"],
+          "type": "string"
+        },
+        "slack": {
+          "description": "Slack channel or user to notify.",
+          "examples": ["#security-alerts"],
+          "type": "string"
+        },
+        "webhook": {
+          "description": "Webhook URL to POST to.",
+          "examples": ["https://hooks.example.com/notify"],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RegexWatch": {
+      "additionalProperties": false,
+      "description": "Configuration for the regex watch type. Extracts content matching a regular expression pattern.",
+      "properties": {
+        "flags": {
+          "description": "Optional regex flags to modify matching behavior. The 'g' (global) and 'm' (multiline) flags are always applied automatically.",
+          "type": "string"
+        },
+        "include": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Glob pattern(s) for files to watch. Can be a single pattern or an array of patterns. Uses minimatch syntax for pattern matching.",
+          "examples": ["package.json", ["package.json", "yarn.lock"], "src/**/*.ts"]
+        },
+        "pattern": {
+          "description": "The regular expression pattern to match. Uses JavaScript regex syntax.",
+          "type": "string"
+        },
+        "type": {
+          "const": "regex",
+          "type": "string"
+        }
+      },
+      "required": ["include", "pattern", "type"],
+      "type": "object"
+    },
+    "ReportConfig": {
+      "$ref": "#/definitions/HandlebarsReport",
+      "description": "Union type of all supported report configurations. Currently only handlebars is supported."
+    },
+    "ReportRef": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ReportConfig"
+        },
+        {
+          "$ref": "#/definitions/UseReference"
+        }
+      ],
+      "description": "Either an inline report or a reference to a defined report."
+    },
+    "Signal": {
+      "additionalProperties": false,
+      "description": "A signal defines what to detect (watch), how to format output (report), and who to notify when triggered.",
+      "properties": {
+        "notify": {
+          "$ref": "#/definitions/NotifyConfig",
+          "description": "Notification channels and targets. Each key is a channel type, value is the target."
+        },
+        "report": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ReportConfig"
+            },
+            {
+              "$ref": "#/definitions/ReportRef"
+            }
+          ],
+          "description": "How to format the output when the signal triggers."
+        },
+        "watch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WatchConfig"
+            },
+            {
+              "$ref": "#/definitions/WatchRef"
+            }
+          ],
+          "description": "What to watch for - file patterns and extraction configuration."
+        }
+      },
+      "required": ["report", "watch"],
+      "type": "object"
+    },
+    "SignalRef": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Signal"
+        },
+        {
+          "$ref": "#/definitions/UseReference"
+        }
+      ],
+      "description": "Either an inline signal or a reference to a defined signal."
+    },
+    "TsqWatch": {
+      "additionalProperties": false,
+      "description": "Configuration for the tsq (tree-sitter query) watch type. Extracts AST nodes using tree-sitter's S-expression query syntax.",
+      "properties": {
+        "capture": {
+          "description": "Optional capture name to filter results.",
+          "type": "string"
+        },
+        "include": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Glob pattern(s) for files to watch. Can be a single pattern or an array of patterns. Uses minimatch syntax for pattern matching.",
+          "examples": ["package.json", ["package.json", "yarn.lock"], "src/**/*.ts"]
+        },
+        "language": {
+          "description": "Optional file extension to override language detection.",
+          "type": "string"
+        },
+        "query": {
+          "description": "The tree-sitter query pattern using S-expression syntax.",
+          "type": "string"
+        },
+        "type": {
+          "const": "tsq",
+          "type": "string"
+        }
+      },
+      "required": ["include", "query", "type"],
+      "type": "object"
+    },
+    "UseReference": {
+      "additionalProperties": false,
+      "description": "A reference to a defined item in the `defined` block. Format: \"#defined/<type>/<name>\" where type is watches, reports, or signals.",
+      "properties": {
+        "use": {
+          "type": "string"
+        }
+      },
+      "required": ["use"],
+      "type": "object"
+    },
+    "WatchConfig": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AstGrepWatch"
+        },
+        {
+          "$ref": "#/definitions/JqWatch"
+        },
+        {
+          "$ref": "#/definitions/RegexWatch"
+        },
+        {
+          "$ref": "#/definitions/TsqWatch"
+        },
+        {
+          "$ref": "#/definitions/XPathWatch"
+        }
+      ],
+      "description": "Union type of all supported watch configurations."
+    },
+    "WatchRef": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/UseReference"
+        },
+        {
+          "$ref": "#/definitions/WatchConfig"
+        }
+      ],
+      "description": "Either an inline watch or a reference to a defined watch."
+    },
+    "XPathWatch": {
+      "additionalProperties": false,
+      "description": "Configuration for the xpath watch type. Extracts nodes from XML/HTML content using XPath expressions.",
+      "properties": {
+        "expression": {
+          "description": "The XPath expression to evaluate.",
+          "type": "string"
+        },
+        "include": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "description": "Glob pattern(s) for files to watch. Can be a single pattern or an array of patterns. Uses minimatch syntax for pattern matching.",
+          "examples": ["package.json", ["package.json", "yarn.lock"], "src/**/*.ts"]
+        },
+        "namespaces": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional namespace prefix mappings.",
+          "type": "object"
+        },
+        "type": {
+          "const": "xpath",
+          "type": "string"
+        }
+      },
+      "required": ["expression", "include", "type"],
+      "type": "object"
+    }
+  }
+}
