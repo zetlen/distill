@@ -23,11 +23,6 @@ export async function processNotifications(configs: NotifyConfig[], context: Not
     if (config['github-assign-reviewer']) reviewers.add(config['github-assign-reviewer'])
     if (config['github-label']) labels.add(config['github-label'])
     if (config['github-workflow']) workflows.add(config['github-workflow'])
-
-    // Legacy support: config.github could be a mention or team
-    if (config.github) {
-      mentions.add(config.github)
-    }
   }
 
   await processMentions(mentions, context)

@@ -83,13 +83,4 @@ describe('GitHub Notifier', () => {
     expect(workflowsDispatched[0].workflow_id).to.equal('ci.yml')
     expect(workflowsDispatched[0].ref).to.equal(ref)
   })
-
-  it('supports legacy github config as mention', async () => {
-    const configs: NotifyConfig[] = [{github: '@legacy-user'}]
-
-    await processNotifications(configs, {octokit: mockOctokit, owner, prNumber, ref, repo})
-
-    expect(comments).to.have.lengthOf(1)
-    expect(comments[0].body).to.contain('@legacy-user')
-  })
 })

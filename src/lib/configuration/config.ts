@@ -191,11 +191,6 @@ export interface NotifyConfig {
    */
   email?: string
   /**
-   * GitHub username or team to mention/request review.
-   * @example "@security-team"
-   */
-  github?: string
-  /**
    * Assign a reviewer to the PR.
    * @example "security-team"
    */

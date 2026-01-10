@@ -3,7 +3,6 @@ import {resolve} from 'node:path'
 import {Octokit} from 'octokit'
 
 import {BaseCommand, type JsonOutput} from '../lib/base-command.js'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import {type NotifyConfig} from '../lib/configuration/config.js'
 import {loadConfig} from '../lib/configuration/loader.js'
 import {parseDiff} from '../lib/diff/parser.js'
@@ -137,7 +136,7 @@ Requires GITHUB_TOKEN environment variable for authentication.`
     })
 
     // Collect and process notifications
-    const notifications = result.reports.map((r) => r.notify).filter(Boolean)
+    const notifications = result.reports.map((r) => r.notify).filter((n): n is NotifyConfig => n !== undefined)
 
     if (notifications.length > 0) {
       this.debug('Processing %d notifications', notifications.length)

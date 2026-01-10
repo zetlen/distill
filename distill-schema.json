@@ -181,11 +181,6 @@
           "examples": ["security@company.com"],
           "type": "string"
         },
-        "github": {
-          "description": "GitHub username or team to mention/request review.",
-          "examples": ["@security-team"],
-          "type": "string"
-        },
         "github-assign-reviewer": {
           "description": "Assign a reviewer to the PR.",
           "examples": ["security-team"],
