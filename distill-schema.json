@@ -171,7 +171,6 @@
       "type": "object"
     },
     "NotifyConfig": {
-      "additionalProperties": false,
       "description": "Notification channel types and their target formats.",
       "properties": {
         "email": {
@@ -179,9 +178,24 @@
           "examples": ["security@company.com"],
           "type": "string"
         },
-        "github": {
-          "description": "GitHub username or team to mention/request review.",
-          "examples": ["@security-team"],
+        "github_assign_reviewer": {
+          "description": "Assign reviewers to the PR (comma-separated).",
+          "examples": ["@security-team, @senior-dev"],
+          "type": "string"
+        },
+        "github_label": {
+          "description": "Add labels to the PR (comma-separated).",
+          "examples": ["security-concern, urgent"],
+          "type": "string"
+        },
+        "github_mention": {
+          "description": "Mention users or teams in a comment (comma-separated).",
+          "examples": ["@security-team, @cto"],
+          "type": "string"
+        },
+        "github_workflow": {
+          "description": "Trigger GitHub workflows (comma-separated).",
+          "examples": ["security-check.yml, audit.yml"],
           "type": "string"
         },
         "jira": {

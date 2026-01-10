@@ -187,10 +187,25 @@ export interface NotifyConfig {
    */
   email?: string
   /**
-   * GitHub username or team to mention/request review.
-   * @example "@security-team"
+   * Assign reviewers to the PR (comma-separated).
+   * @example "@security-team, @senior-dev"
    */
-  github?: string
+  github_assign_reviewer?: string
+  /**
+   * Add labels to the PR (comma-separated).
+   * @example "security-concern, urgent"
+   */
+  github_label?: string
+  /**
+   * Mention users or teams in a comment (comma-separated).
+   * @example "@security-team, @cto"
+   */
+  github_mention?: string
+  /**
+   * Trigger GitHub workflows (comma-separated).
+   * @example "security-check.yml, audit.yml"
+   */
+  github_workflow?: string
   /**
    * Jira issue key to comment on.
    * @example "SEC-123"
